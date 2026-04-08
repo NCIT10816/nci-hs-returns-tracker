@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Returns Tracker — NCI Technology</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blue-dark:   #0d2e4f;
+    --blue-mid:    #185FA5;
+    --blue-light:  #e8f1fb;
+    --gray-dark:   #1c1c1e;
+    --gray-mid:    #5f5e5a;
+    --gray-light:  #f3f4f5;
+    --gray-border: #d8dade;
+    --white:       #ffffff;
+    --success:     #2d7a3a;
+    --success-bg:  #eaf4ec;
+    --warn:        #8a5200;
+    --warn-bg:     #fef3dc;
+    --danger:      #a32d2d;
+    --danger-bg:   #fceaea;
+    --radius-sm:   6px;
+    --radius-md:   10px;
+    --radius-lg:   14px;
+    --shadow-sm:   0 1px 3px rgba(0,0,0,.08);
+    --shadow-md:   0 4px 16px rgba(0,0,0,.10);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: #f0f2f5; color: var(--gray-dark); min-height: 100vh; }
+
+  header {
+    background: var(--blue-dark); color: #fff;
+    padding: 0 2rem; height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 2px 12px rgba(0,0,0,.25);
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-mark {
+    width: 32px; height: 32px; background: var(--blue-mid);
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 14px; letter-spacing: -0.5px;
+  }
+  .logo-text { font-size: 15px; font-weight: 500; letter-spacing: -0.2px; }
+  .logo-sub  { font-size: 11px; opacity: 0.55; margin-top: 1px; }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+
+  .btn {
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+    padding: 7px 16px; border-radius: var(--radius-sm); cursor: pointer;
+    border: 1px solid var(--gray-border); background: var(--white); color: var(--gray-dark);
+    transition: background .15s; white-space: nowrap;
+  }
+  .btn:hover { background: var(--gray-light); }
+  .btn-primary { background: var(--blue-mid); color: #fff; border-color: var(--blue-mid); }
+  .btn-primary:hover { background: #0f4a82; }
+  .btn-success { background: var(--success); color: #fff; border-color: var(--success); }
+  .btn-success:hover { background: #235f2c; }
+  .btn-warn { background: #8a5200; color: #fff; border-color: #8a5200; }
+  .btn-warn:hover { background: #6b3f00; }
+  .btn-outline { background: transparent; color: #fff; border-color: rgba(255,255,255,.35); }
+  .btn-outline:hover { background: rgba(255,255,255,.1); }
+  .btn-sm { padding: 5px 11px; font-size: 12px; }
+
+  .page { max-width: 1400px; margin: 0 auto; padding: 1.5rem 2rem 3rem; }
+
+  .upload-zone {
+    border: 2px dashed var(--gray-border); border-radius: var(--radius-lg);
+    background: var(--white); padding: 2.5rem; text-align: center; cursor: pointer;
+    transition: border-color .2s, background .2s; margin-bottom: 1.25rem;
+    box-shadow: var(--shadow-sm);
+  }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--blue-mid); background: var(--blue-light); }
+  .upload-icon {
+    width: 48px; height: 48px; background: var(--blue-light); border-radius: var(--radius-md);
+    margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; font-size: 22px;
+  }
+  .upload-zone h2 { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+  .upload-zone p  { font-size: 13px; color: var(--gray-mid); }
+
+  .file-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1.25rem; }
+  .file-chip {
+    display: flex; align-items: center; gap: 8px; background: var(--white);
+    border: 1px solid var(--gray-border); border-radius: 999px;
+    padding: 5px 12px 5px 10px; font-size: 12px; font-weight: 500; box-shadow: var(--shadow-sm);
+  }
+  .file-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue-mid); }
+  .file-chip .count { color: var(--gray-mid); font-weight: 400; }
+  .file-chip .rm { cursor: pointer; color: var(--gray-mid); font-size: 16px; line-height: 1; border: none; background: none; padding: 0; margin-left: 2px; }
+  .file-chip .rm:hover { color: var(--danger); }
+
+  .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 1.25rem; }
+  .metric {
+    background: var(--white); border-radius: var(--radius-lg); padding: 18px 20px;
+    box-shadow: var(--shadow-sm); border: 1px solid var(--gray-border);
+    position: relative; overflow: hidden; cursor: default;
+  }
+  .metric::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--blue-mid); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  .metric.m-issue::before { background: var(--danger); }
+  .metric.m-warn::before  { background: #e09a00; }
+  .metric.m-dup::before   { background: #7F77DD; }
+  .metric-label { font-size: 11px; font-weight: 500; color: var(--gray-mid); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .metric-value { font-size: 28px; font-weight: 600; line-height: 1; }
+  .metric-sub   { font-size: 11px; color: var(--gray-mid); margin-top: 5px; }
+  .metric.clickable { cursor: pointer; }
+  .metric.clickable:hover { background: var(--blue-light); }
+
+  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1.25rem; }
+  .chart-card {
+    background: var(--white); border: 1px solid var(--gray-border);
+    border-radius: var(--radius-lg); padding: 18px 20px; box-shadow: var(--shadow-sm);
+  }
+  .chart-card-title { font-size: 12px; font-weight: 600; color: var(--gray-mid); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
+
+  .data-panel { background: var(--white); border: 1px solid var(--gray-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
+  .panel-header {
+    padding: 14px 18px; border-bottom: 1px solid var(--gray-border);
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+    background: var(--gray-light);
+  }
+  .panel-title { font-size: 13px; font-weight: 600; }
+  .record-count { font-size: 12px; color: var(--gray-mid); }
+  .filters {
+    padding: 12px 18px; border-bottom: 1px solid var(--gray-border);
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: #fafafa;
+  }
+  .filter-group { display: flex; align-items: center; gap: 6px; }
+  .filter-group label { font-size: 12px; color: var(--gray-mid); white-space: nowrap; }
+  .filters input[type="text"], .filters input[type="date"], .filters select {
+    font-family: 'DM Sans', sans-serif; font-size: 12px; padding: 6px 10px; height: 32px;
+    border: 1px solid var(--gray-border); border-radius: var(--radius-sm);
+    background: var(--white); color: var(--gray-dark);
+  }
+  .filters input[type="text"] { width: 180px; }
+  .filters input[type="date"] { width: 130px; }
+  .filter-check { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
+  .filter-check input { cursor: pointer; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 1100px; }
+  th {
+    padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 600;
+    color: var(--gray-mid); text-transform: uppercase; letter-spacing: 0.4px;
+    border-bottom: 1px solid var(--gray-border); white-space: nowrap;
+    background: var(--gray-light); cursor: pointer; user-select: none;
+  }
+  th:hover { background: #e8eaed; }
+  th .sort-arrow { opacity: 0.3; margin-left: 3px; font-size: 10px; }
+  th.sort-asc .sort-arrow::after  { content: '▲'; opacity: 1; }
+  th.sort-desc .sort-arrow::after { content: '▼'; opacity: 1; }
+  td { padding: 9px 12px; border-bottom: 1px solid #f0f2f5; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--blue-light); }
+  tr.dup-row td { background: #f5f0ff; }
+  tr.dup-row:hover td { background: #ede6ff; }
+  td.mono { font-family: 'DM Mono', monospace; font-size: 11.5px; }
+  .delete-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--gray-border); font-size: 15px; padding: 2px 4px;
+    border-radius: var(--radius-sm); transition: color .15s, background .15s;
+    line-height: 1;
+  }
+  .delete-btn:hover { color: var(--danger); background: var(--danger-bg); }
+
+  .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 999px; letter-spacing: 0.2px; }
+  .badge-ok     { background: var(--success-bg); color: var(--success); }
+  .badge-warn   { background: var(--warn-bg);    color: var(--warn); }
+  .badge-issue  { background: var(--danger-bg);  color: var(--danger); }
+  .badge-none   { background: #f0f2f5;           color: var(--gray-mid); }
+  .badge-dup    { background: #EEEDFE;            color: #534AB7; }
+
+  .empty-state { text-align: center; padding: 4rem 2rem; color: var(--gray-mid); }
+  .empty-state .empty-icon { font-size: 36px; margin-bottom: 12px; }
+  .empty-state h3 { font-size: 15px; font-weight: 500; margin-bottom: 6px; color: var(--gray-dark); }
+  .empty-state p  { font-size: 13px; }
+  .panel-actions { display: flex; gap: 8px; }
+  .verify-cell { max-width: 240px; }
+  .verify-text { font-size: 11px; color: var(--gray-mid); display: block; margin-top: 3px; line-height: 1.5; word-break: break-word; }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.45); z-index: 500;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--white); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md); padding: 28px 32px;
+    max-width: 580px; width: 90%; max-height: 80vh; overflow-y: auto;
+  }
+  .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .modal-sub { font-size: 13px; color: var(--gray-mid); margin-bottom: 20px; }
+  .modal-close { float: right; cursor: pointer; font-size: 20px; color: var(--gray-mid); border: none; background: none; margin-top: -4px; }
+  .dup-group { margin-bottom: 16px; }
+  .dup-group-title { font-size: 12px; font-weight: 600; color: #534AB7; background: #EEEDFE; padding: 5px 10px; border-radius: var(--radius-sm); margin-bottom: 6px; font-family: 'DM Mono', monospace; }
+  .dup-item { font-size: 12px; padding: 6px 10px; border-bottom: 1px solid var(--gray-border); display: flex; gap: 12px; flex-wrap: wrap; }
+  .dup-item:last-child { border-bottom: none; }
+  .dup-item span { color: var(--gray-mid); }
+  .dup-item strong { color: var(--gray-dark); }
+
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--blue-dark); color: #fff; font-size: 13px; font-weight: 500;
+    padding: 12px 20px; border-radius: var(--radius-md); box-shadow: var(--shadow-md);
+    opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 999;
+  }
+  #toast.show { opacity: 1; }
+
+  @media (max-width: 900px) {
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .charts-row { grid-template-columns: 1fr; }
+    .page { padding: 1rem; }
+  }
+  @media (max-width: 600px) {
+    .metrics { grid-template-columns: 1fr 1fr; }
+    header { padding: 0 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">NCI</div>
+    <div>
+      <div class="logo-text">NCI Technology</div>
+      <div class="logo-sub">Returns Tracker</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <span id="saveStatus" style="font-size:11px;opacity:0.5;margin-right:4px;display:none">&#10003; Auto-saved</span>
+    <button class="btn btn-outline btn-sm" onclick="backupData()">&#128190; Backup Data</button>
+    <button class="btn btn-outline btn-sm" onclick="document.getElementById('restoreInput').click()">&#9099; Restore Backup</button>
+    <input type="file" id="restoreInput" accept=".xlsx" style="display:none" onchange="restoreData(event)">
+    <button class="btn btn-outline btn-sm" onclick="exportReport()">&#128196; Create Report</button>
+    <button class="btn btn-outline btn-sm" onclick="publishDashboard()" style="background:rgba(24,95,165,.5);border-color:rgba(255,255,255,.6)">&#127758; Publish Dashboard</button>
+    <button class="btn btn-outline btn-sm" onclick="clearAll()" style="color:rgba(255,255,255,.6);border-color:rgba(255,255,255,.2)">Clear all</button>
+  </div>
+</header>
+
+<div class="page">
+
+  <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <div class="upload-icon">📂</div>
+    <h2>Drop Excel return sheets here, or click to browse</h2>
+    <p>Supports .xlsx &amp; .xls &nbsp;·&nbsp; Upload one at a time or multiple at once &nbsp;·&nbsp; Data auto-saves between sessions</p>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" multiple style="display:none" onchange="handleFiles(event)">
+  </div>
+
+  <div class="file-chips" id="fileChips"></div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Total Returns</div>
+      <div class="metric-value" id="m-total">0</div>
+      <div class="metric-sub">across all files</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Files Loaded</div>
+      <div class="metric-value" id="m-files">0</div>
+      <div class="metric-sub">sheets compiled</div>
+    </div>
+    <div class="metric m-warn">
+      <div class="metric-label">Restore Fees</div>
+      <div class="metric-value" id="m-fee" style="color:var(--warn)">0</div>
+      <div class="metric-sub">charged returns</div>
+    </div>
+    <div class="metric m-dup clickable" onclick="showDuplicates()" title="Click to view duplicates">
+      <div class="metric-label">Duplicate SNs</div>
+      <div class="metric-value" id="m-dup" style="color:#534AB7">0</div>
+      <div class="metric-sub">click to review</div>
+    </div>
+  </div>
+
+  <div class="charts-row" style="grid-template-columns:1fr 1fr 1fr">
+    <div class="chart-card">
+      <div class="chart-card-title">Returns by issue type</div>
+      <div style="position:relative;height:220px"><canvas id="chartDesc"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Most reported products</div>
+      <div style="position:relative;height:220px"><canvas id="chartProducts"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Returns per file / batch</div>
+      <div style="position:relative;height:220px"><canvas id="chartFiles"></canvas></div>
+    </div>
+  </div>
+
+  <div class="data-panel">
+    <div class="panel-header">
+      <div>
+        <div class="panel-title">All Returns</div>
+        <div class="record-count" id="recordCount">No data loaded</div>
+      </div>
+      <div class="panel-actions">
+        <button class="btn btn-sm" onclick="clearFilters()">Clear filters</button>
+        <button class="btn btn-sm btn-primary" onclick="exportReport()">Create Report (Excel)</button>
+      </div>
+    </div>
+    <div class="filters">
+      <div class="filter-group">
+        <label>🔍</label>
+        <input type="text" id="search" placeholder="Search SN, description, findings…" oninput="applyFilters()">
+      </div>
+      <div class="filter-group">
+        <label>Product</label>
+        <select id="fProduct" onchange="applyFilters()"><option value="">All products</option></select>
+      </div>
+      <div class="filter-group">
+        <label>Date from</label>
+        <input type="date" id="fDateFrom" onchange="applyFilters()">
+      </div>
+      <div class="filter-group">
+        <label>to</label>
+        <input type="date" id="fDateTo" onchange="applyFilters()">
+      </div>
+      <div class="filter-group">
+        <label>File</label>
+        <select id="fFile" onchange="applyFilters()"><option value="">All files</option></select>
+      </div>
+      <label class="filter-check">
+        <input type="checkbox" id="fIssues" onchange="applyFilters()"> Issues only
+      </label>
+      <label class="filter-check">
+        <input type="checkbox" id="fFee" onchange="applyFilters()"> Restore fee only
+      </label>
+      <label class="filter-check">
+        <input type="checkbox" id="fDups" onchange="applyFilters()"> Duplicates only
+      </label>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th onclick="sortBy('sn')">SN <span class="sort-arrow"></span></th>
+            <th onclick="sortBy('product')">Product <span class="sort-arrow"></span></th>
+            <th onclick="sortBy('reqDate')">Req. Date <span class="sort-arrow"></span></th>
+            <th onclick="sortBy('qty')">QTY <span class="sort-arrow"></span></th>
+            <th onclick="sortBy('description')">Description <span class="sort-arrow"></span></th>
+            <th onclick="sortBy('result')">Result <span class="sort-arrow"></span></th>
+            <th onclick="sortBy('rma')">RMA # <span class="sort-arrow"></span></th>
+            <th onclick="sortBy('recvDate')">Recv. Date <span class="sort-arrow"></span></th>
+            <th>Verify / Findings</th>
+            <th onclick="sortBy('restoreFee')">Restore Fee <span class="sort-arrow"></span></th>
+            <th>Overlay</th>
+            <th>Box</th>
+            <th>Battery</th>
+            <th onclick="sortBy('sourceFile')">Source File <span class="sort-arrow"></span></th>
+            <th style="width:36px"></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">📋</div>
+        <h3>No data loaded yet</h3>
+        <p>Upload one or more Excel return sheets above to get started.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Duplicate SN Modal -->
+<div class="modal-overlay" id="dupModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeDupModal()">×</button>
+    <div class="modal-title">⚠ Duplicate Serial Numbers Detected</div>
+    <div class="modal-sub" id="dupModalSub"></div>
+    <div id="dupModalBody"></div>
+    <div style="margin-top:20px;text-align:right">
+      <button class="btn btn-primary btn-sm" onclick="closeDupModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'nci_returns_tracker_v1';
+let allRows = [];
+let filteredRows = [];
+let loadedFiles = [];
+let sortCol = '';
+let sortDir = 1;
+let chartDesc = null;
+let chartFiles = null;
+let chartProducts = null;
+let dupSNs = new Set();
+
+// ── Storage ──
+function saveToStorage() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ allRows, loadedFiles }));
+    const el = document.getElementById('saveStatus');
+    el.style.display = 'inline';
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.style.display = 'none', 3000);
+  } catch(e) { toast('Warning: storage full — consider creating a backup'); }
+}
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    allRows     = data.allRows     || [];
+    loadedFiles = data.loadedFiles || [];
+    if (allRows.length) { refreshAll(); toast(allRows.length + ' records restored from last session'); }
+  } catch(e) { localStorage.removeItem(STORAGE_KEY); }
+}
+
+// ── Backup & Restore ──
+function backupData() {
+  if (!allRows.length) { toast('No data to backup'); return; }
+  const wb = XLSX.utils.book_new();
+  const headers = ['SN','Product','Req Date','QTY','Parts','Description','Result','RMA#','Ini Delivery','PO','Recv Date','Verify','Restore Fee','Overlay','Box','Insert','Adapter','Fastener','Manual','Battery','Source File'];
+  const keys    = ['sn','product','reqDate','qty','parts','description','result','rma','iniDelivery','po','recvDate','verify','restoreFee','overlay','box','insert','adapter','fastener','manual','battery','sourceFile'];
+  const data = allRows.map(r => keys.map(k => r[k] || ''));
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+  ws['!cols'] = [14,12,12,6,8,30,12,10,12,10,12,45,12,10,8,8,10,10,10,12,20].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws, 'Backup');
+  const meta = [['NCI Returns Tracker Backup'],[''],['Created', new Date().toLocaleString()],['Records', allRows.length],['Files', loadedFiles.join(' | ')]];
+  const ws2 = XLSX.utils.aoa_to_sheet(meta);
+  XLSX.utils.book_append_sheet(wb, ws2, 'Info');
+  const date = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `returns_backup_${date}.xlsx`);
+  toast('Backup downloaded — keep this file safe!');
+}
+
+function restoreData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb = XLSX.read(ev.target.result, { type: 'array', cellDates: true });
+      const ws = wb.Sheets['Backup'];
+      if (!ws) { toast('Error: not a valid backup file — sheet "Backup" not found'); return; }
+      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+      if (!raw || raw.length < 2) { toast('Backup file appears empty'); return; }
+      const rows = raw.slice(1).filter(r => r.some(c => c));
+      const parsed = rows.map(r => ({
+        sn: r[0]||'', product: r[1]||'', reqDate: r[2]||'', qty: r[3]||'',
+        parts: r[4]||'', description: r[5]||'', result: r[6]||'', rma: r[7]||'',
+        iniDelivery: r[8]||'', po: r[9]||'', recvDate: r[10]||'', verify: r[11]||'',
+        restoreFee: r[12]||'', overlay: r[13]||'', box: r[14]||'', insert: r[15]||'',
+        adapter: r[16]||'', fastener: r[17]||'', manual: r[18]||'', battery: r[19]||'',
+        sourceFile: r[20]||''
+      }));
+      allRows = parsed;
+      loadedFiles = [...new Set(parsed.map(r => r.sourceFile).filter(Boolean))];
+      refreshAll();
+      saveToStorage();
+      toast(parsed.length + ' records restored from backup!');
+    } catch(err) { toast('Error reading backup file'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── Drag & Drop ──
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFileList(e.dataTransfer.files); });
+
+function handleFiles(e) { handleFileList(e.target.files); e.target.value = ''; }
+
+function handleFileList(files) {
+  Array.from(files).forEach(file => {
+    if (!file.name.match(/\.xlsx?$/i)) { toast('Skipped: ' + file.name + ' (not .xlsx/.xls)'); return; }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: 'array', cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+        if (!raw || raw.length < 2) { toast('No data found in ' + file.name); return; }
+        const rows = raw.slice(1).filter(r => r.some(c => c !== null && c !== undefined && c !== ''));
+        const parsed = rows.map(r => ({
+          sn: r[0]||'', product: r[1]||'', reqDate: r[2]||'', qty: r[3]||'',
+          parts: r[4]||'', description: r[5]||'', result: r[6]||'', rma: r[7]||'',
+          iniDelivery: r[8]||'', po: r[9]||'', recvDate: r[10]||'', verify: r[11]||'',
+          restoreFee: r[12]||'', overlay: r[13]||'', box: r[14]||'', insert: r[15]||'',
+          adapter: r[16]||'', fastener: r[17]||'', manual: r[18]||'', battery: r[19]||'',
+          sourceFile: file.name
+        }));
+        allRows = allRows.filter(r => r.sourceFile !== file.name);
+        allRows = [...allRows, ...parsed];
+        if (!loadedFiles.includes(file.name)) loadedFiles.push(file.name);
+        refreshAll();
+        saveToStorage();
+        // Check for duplicates after upload and auto-show if found
+        const newDups = findDuplicates();
+        if (newDups.size > 0) {
+          toast(parsed.length + ' records loaded — ⚠ ' + newDups.size + ' duplicate SN(s) found!');
+          setTimeout(() => showDuplicates(), 1200);
+        } else {
+          toast(parsed.length + ' records loaded from ' + file.name);
+        }
+      } catch(err) { toast('Error reading ' + file.name); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function refreshAll() {
+  updateFileChips();
+  updateProductFilter();
+  updateFileFilter();
+  findDuplicates();
+  applyFilters();
+  updateMetrics();
+  updateCharts();
+}
+
+function updateFileChips() {
+  const el = document.getElementById('fileChips');
+  el.innerHTML = loadedFiles.map(f => {
+    const count = allRows.filter(r => r.sourceFile === f).length;
+    return `<div class="file-chip">
+      <div class="dot"></div>
+      <span>${f}</span>
+      <span class="count">${count} record${count !== 1 ? 's' : ''}</span>
+      <button class="rm" title="Remove" onclick="removeFile('${f.replace(/'/g,"\\'")}')">×</button>
+    </div>`;
+  }).join('');
+}
+
+function removeFile(name) {
+  allRows = allRows.filter(r => r.sourceFile !== name);
+  loadedFiles = loadedFiles.filter(f => f !== name);
+  refreshAll();
+  saveToStorage();
+  toast('Removed ' + name);
+}
+
+function clearAll() {
+  if (allRows.length && !confirm('Clear all loaded data? This will also clear the auto-saved data in this browser.\n\nMake sure you have a backup first!')) return;
+  allRows = []; loadedFiles = []; sortCol = ''; sortDir = 1; dupSNs = new Set();
+  localStorage.removeItem(STORAGE_KEY);
+  refreshAll();
+  toast('All data cleared');
+}
+
+// ── Duplicate Detection ──
+function findDuplicates() {
+  const snCount = {};
+  allRows.forEach(r => { if (r.sn) snCount[r.sn] = (snCount[r.sn] || 0) + 1; });
+  dupSNs = new Set(Object.keys(snCount).filter(sn => snCount[sn] > 1));
+  document.getElementById('m-dup').textContent = dupSNs.size;
+  return dupSNs;
+}
+
+function showDuplicates() {
+  if (dupSNs.size === 0) { toast('No duplicate serial numbers found'); return; }
+  const modal = document.getElementById('dupModal');
+  const body  = document.getElementById('dupModalBody');
+  const sub   = document.getElementById('dupModalSub');
+  sub.textContent = dupSNs.size + ' serial number' + (dupSNs.size > 1 ? 's appear' : ' appears') + ' more than once across your loaded files.';
+  let html = '';
+  dupSNs.forEach(sn => {
+    const matches = allRows.filter(r => r.sn === sn);
+    html += `<div class="dup-group">
+      <div class="dup-group-title">${sn} — ${matches.length} occurrences</div>`;
+    matches.forEach(r => {
+      html += `<div class="dup-item">
+        <div><span>Date: </span><strong>${r.reqDate || '—'}</strong></div>
+        <div><span>Product: </span><strong>${r.product || '—'}</strong></div>
+        <div><span>RMA#: </span><strong>${r.rma || '—'}</strong></div>
+        <div><span>Description: </span><strong>${r.description || '—'}</strong></div>
+        <div><span>File: </span><strong>${r.sourceFile}</strong></div>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  body.innerHTML = html;
+  modal.classList.add('open');
+}
+
+function closeDupModal() { document.getElementById('dupModal').classList.remove('open'); }
+
+// ── Filters ──
+function updateMetrics() {
+  document.getElementById('m-total').textContent  = allRows.length;
+  document.getElementById('m-files').textContent  = loadedFiles.length;
+  document.getElementById('m-fee').textContent    = allRows.filter(r => r.restoreFee && r.restoreFee.toString().trim()).length;
+  document.getElementById('m-dup').textContent    = dupSNs.size;
+}
+
+function updateProductFilter() {
+  const products = [...new Set(allRows.map(r => r.product).filter(Boolean))].sort();
+  const sel = document.getElementById('fProduct');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All products</option>' + products.map(p => `<option value="${p}">${p}</option>`).join('');
+  if (cur) sel.value = cur;
+}
+
+function updateFileFilter() {
+  const sel = document.getElementById('fFile');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All files</option>' + loadedFiles.map(f => `<option value="${f}">${f}</option>`).join('');
+  if (cur) sel.value = cur;
+}
+
+function parseDate(str) {
+  if (!str) return null;
+  // Handle M/D/YYYY, MM/DD/YYYY, YYYY-MM-DD, and similar
+  const s = str.toString().trim();
+  const d = new Date(s);
+  if (!isNaN(d)) return d;
+  // Try MM/DD/YYYY explicitly
+  const parts = s.split('/');
+  if (parts.length === 3) {
+    const [m, day, y] = parts;
+    return new Date(+y, +m - 1, +day);
+  }
+  return null;
+}
+
+function applyFilters() {
+  const search   = document.getElementById('search').value.toLowerCase();
+  const prod     = document.getElementById('fProduct').value;
+  const dateFrom = document.getElementById('fDateFrom').value;
+  const dateTo   = document.getElementById('fDateTo').value;
+  const fileF    = document.getElementById('fFile').value;
+  const issues   = document.getElementById('fIssues').checked;
+  const fee      = document.getElementById('fFee').checked;
+  const dups     = document.getElementById('fDups').checked;
+
+  const fromTs = dateFrom ? new Date(dateFrom).getTime() : null;
+  const toTs   = dateTo   ? new Date(dateTo + 'T23:59:59').getTime() : null;
+
+  filteredRows = allRows.filter(r => {
+    if (search && !`${r.sn} ${r.description} ${r.verify} ${r.rma} ${r.product}`.toLowerCase().includes(search)) return false;
+    if (prod   && r.product.toString() !== prod) return false;
+    if (fromTs || toTs) {
+      const rDate = parseDate(r.reqDate);
+      const rTs   = rDate ? rDate.getTime() : null;
+      if (fromTs && (!rTs || rTs < fromTs)) return false;
+      if (toTs   && (!rTs || rTs > toTs))   return false;
+    }
+    if (fileF  && r.sourceFile !== fileF) return false;
+    if (issues && !(r.verify && r.verify.trim().length > 10)) return false;
+    if (fee    && !(r.restoreFee && r.restoreFee.toString().trim())) return false;
+    if (dups   && !dupSNs.has(r.sn)) return false;
+    return true;
+  });
+
+  if (sortCol) {
+    filteredRows.sort((a, b) => {
+      let av = a[sortCol] || '', bv = b[sortCol] || '';
+      return av < bv ? -sortDir : av > bv ? sortDir : 0;
+    });
+  }
+
+  renderTable();
+  document.getElementById('recordCount').textContent = filteredRows.length + ' of ' + allRows.length + ' records';
+}
+
+function clearFilters() {
+  ['search'].forEach(id => document.getElementById(id).value = '');
+  ['fProduct','fFile'].forEach(id => document.getElementById(id).value = '');
+  ['fDateFrom','fDateTo'].forEach(id => document.getElementById(id).value = '');
+  ['fIssues','fFee','fDups'].forEach(id => document.getElementById(id).checked = false);
+  applyFilters();
+}
+
+function sortBy(col) {
+  if (sortCol === col) sortDir *= -1; else { sortCol = col; sortDir = 1; }
+  document.querySelectorAll('th').forEach(th => th.classList.remove('sort-asc','sort-desc'));
+  const cols = ['sn','product','reqDate','qty','description','result','rma','','','restoreFee','','','','sourceFile'];
+  const idx = cols.indexOf(col);
+  if (idx >= 0) document.querySelectorAll('th')[idx].classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+  applyFilters();
+}
+
+function getVerifyBadge(verify) {
+  if (!verify || !verify.trim()) return '<span class="badge badge-none">—</span>';
+  const v = verify.toLowerCase();
+  if (v.includes('not ') || v.includes('wrong') || v.includes('missing') || v.includes('issue') || v.includes('fail') || v.includes('no battery'))
+    return '<span class="badge badge-issue">Issue</span>';
+  if (v.includes('good') || v.includes(' ok') || v.includes('pass'))
+    return '<span class="badge badge-ok">OK</span>';
+  return '<span class="badge badge-warn">Review</span>';
+}
+
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  const empty = document.getElementById('emptyState');
+  if (!filteredRows.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    empty.querySelector('h3').textContent = allRows.length ? 'No records match your filters' : 'No data loaded yet';
+    empty.querySelector('p').textContent  = allRows.length ? 'Try adjusting or clearing your filters.' : 'Upload one or more Excel return sheets above to get started.';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = filteredRows.map(r => {
+    const isDup = dupSNs.has(r.sn);
+    return `<tr class="${isDup ? 'dup-row' : ''}">
+      <td class="mono"><strong>${r.sn}</strong>${isDup ? ' <span class="badge badge-dup">DUP</span>' : ''}</td>
+      <td>${r.product}</td>
+      <td style="white-space:nowrap">${r.reqDate}</td>
+      <td style="text-align:center">${r.qty}</td>
+      <td style="max-width:180px;word-break:break-word">${r.description}</td>
+      <td>${r.result}</td>
+      <td class="mono">${r.rma}</td>
+      <td style="white-space:nowrap">${r.recvDate}</td>
+      <td class="verify-cell">
+        ${getVerifyBadge(r.verify)}
+        ${r.verify ? `<span class="verify-text">${r.verify.slice(0,100)}${r.verify.length>100?'…':''}</span>` : ''}
+      </td>
+      <td style="text-align:center">${r.restoreFee && r.restoreFee.toString().trim() ? '<span class="badge badge-warn">Yes</span>' : '<span style="color:#ccc">—</span>'}</td>
+      <td style="text-align:center">${r.overlay || '<span style="color:#ccc">—</span>'}</td>
+      <td style="text-align:center">${r.box || '<span style="color:#ccc">—</span>'}</td>
+      <td style="text-align:center">${r.battery || '<span style="color:#ccc">—</span>'}</td>
+      <td style="font-size:11px;color:var(--gray-mid);max-width:120px;word-break:break-all">${r.sourceFile}</td>
+      <td style="text-align:center"><button class="delete-btn" onclick="deleteRow(${allRows.indexOf(r)})" title="Delete this record">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function updateCharts() {
+  const colors = ['#185FA5','#1D9E75','#BA7517','#D4537E','#7F77DD','#D85A30','#639922','#E24B4A','#5DCAA5','#F09595'];
+  const descMap = {};
+  allRows.forEach(r => { const d = r.description||'Unknown'; descMap[d]=(descMap[d]||0)+1; });
+  const descSorted = Object.entries(descMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+  const prodMap = {};
+  allRows.forEach(r => { const p = r.product ? r.product.toString() : 'Unknown'; prodMap[p]=(prodMap[p]||0)+1; });
+  const prodSorted = Object.entries(prodMap).sort((a,b)=>b[1]-a[1]);
+
+  const fileMap = {};
+  allRows.forEach(r => { fileMap[r.sourceFile]=(fileMap[r.sourceFile]||0)+1; });
+
+  if (chartDesc) chartDesc.destroy();
+  chartDesc = new Chart(document.getElementById('chartDesc'), {
+    type: 'bar',
+    data: {
+      labels: descSorted.map(([k]) => k.length > 24 ? k.slice(0,24)+'…' : k),
+      datasets: [{ data: descSorted.map(([,v])=>v), backgroundColor: colors.slice(0,descSorted.length), borderRadius: 5, borderWidth: 0 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } } }, x: { ticks: { font: { size: 10 } } } } }
+  });
+
+  if (chartProducts) chartProducts.destroy();
+  chartProducts = new Chart(document.getElementById('chartProducts'), {
+    type: 'bar',
+    data: {
+      labels: prodSorted.map(([k]) => k.length > 18 ? k.slice(0,18)+'…' : k),
+      datasets: [{
+        data: prodSorted.map(([,v])=>v),
+        backgroundColor: prodSorted.map((_,i) => colors[i % colors.length]),
+        borderRadius: 5, borderWidth: 0
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } } },
+        y: { ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+
+  const fileEntries = Object.entries(fileMap);
+  if (chartFiles) chartFiles.destroy();
+  chartFiles = new Chart(document.getElementById('chartFiles'), {
+    type: 'bar',
+    data: {
+      labels: fileEntries.map(([k]) => k.replace(/\.xlsx?/i,'').slice(-20)),
+      datasets: [{ data: fileEntries.map(([,v])=>v), backgroundColor: '#185FA5', borderRadius: 5, borderWidth: 0 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } } }, x: { ticks: { font: { size: 10 } } } } }
+  });
+}
+
+function exportReport() {
+  if (!filteredRows.length) { toast('No data to export'); return; }
+  const wb = XLSX.utils.book_new();
+  const issues = filteredRows.filter(r => r.verify && r.verify.trim().length > 10);
+  const fees   = filteredRows.filter(r => r.restoreFee && r.restoreFee.toString().trim());
+  const dups   = filteredRows.filter(r => dupSNs.has(r.sn));
+
+  const descMap = {};
+  filteredRows.forEach(r => { const d=r.description||'Unknown'; descMap[d]=(descMap[d]||0)+1; });
+  const summary = [
+    ['NCI Technology — Returns Report'],[''],
+    ['Generated', new Date().toLocaleString()],
+    ['Files included', loadedFiles.join(' | ')],[''],
+    ['METRIC','VALUE'],
+    ['Total records', filteredRows.length],
+    ['Issues flagged', issues.length],
+    ['Restore fees charged', fees.length],
+    ['Duplicate SNs', dupSNs.size],
+    ['Unique products', new Set(filteredRows.map(r=>r.product)).size],[''],
+    ['TOP ISSUE TYPES','COUNT']
+  ];
+  Object.entries(descMap).sort((a,b)=>b[1]-a[1]).slice(0,10).forEach(([k,v])=>summary.push([k,v]));
+  const ws2 = XLSX.utils.aoa_to_sheet(summary);
+  ws2['!cols'] = [{wch:35},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
+
+  const headers = ['SN','Product','Req Date','QTY','Description','Result','RMA#','Recv Date','Verify / Findings','Restore Fee','Overlay','Box','Battery','Source File'];
+  const toRow = r => [r.sn,r.product,r.reqDate,r.qty,r.description,r.result,r.rma,r.recvDate,r.verify,r.restoreFee,r.overlay,r.box,r.battery,r.sourceFile];
+  const colWidths = [14,12,12,6,30,12,10,12,45,12,10,8,10,20].map(w=>({wch:w}));
+
+  const ws = XLSX.utils.aoa_to_sheet([headers,...filteredRows.map(toRow)]);
+  ws['!cols'] = colWidths;
+  XLSX.utils.book_append_sheet(wb, ws, 'All Returns');
+
+  if (issues.length) {
+    const wsI = XLSX.utils.aoa_to_sheet([headers,...issues.map(toRow)]);
+    wsI['!cols'] = colWidths;
+    XLSX.utils.book_append_sheet(wb, wsI, 'Issues Only');
+  }
+
+  if (dups.length) {
+    const wsD = XLSX.utils.aoa_to_sheet([headers,...dups.map(toRow)]);
+    wsD['!cols'] = colWidths;
+    XLSX.utils.book_append_sheet(wb, wsD, 'Duplicate SNs');
+  }
+
+  const sheetCount = 2 + (issues.length ? 1 : 0) + (dups.length ? 1 : 0);
+  XLSX.writeFile(wb, 'returns_report.xlsx');
+  toast('Report exported with ' + sheetCount + ' sheets');
+}
+
+function deleteRow(idx) {
+  const row = allRows[idx];
+  if (!row) return;
+  if (!confirm(`Delete this record?\n\nSN: ${row.sn || '—'}\nProduct: ${row.product || '—'}\nDate: ${row.reqDate || '—'}\n\nThis cannot be undone.`)) return;
+  allRows.splice(idx, 1);
+  // Clean up file list if no rows remain for that file
+  loadedFiles = loadedFiles.filter(f => allRows.some(r => r.sourceFile === f));
+  refreshAll();
+  saveToStorage();
+  toast('Record deleted');
+}
+
+function publishDashboard() {
+  if (!allRows.length) { toast('No data to publish — upload your Excel sheets first'); return; }
+  if (!confirm('Publish Dashboard?\n\nThis will generate a dashboard.html file with all your current data baked in.\n\nUpload it to GitHub and anyone with the /dashboard link can view it.')) return;
+
+  const data = JSON.stringify(allRows);
+  const files = JSON.stringify(loadedFiles);
+  const generated = new Date().toLocaleString();
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Returns Dashboard — NCI Technology</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"><\/script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--blue-dark:#0d2e4f;--blue-mid:#185FA5;--blue-light:#e8f1fb;--gray-dark:#1c1c1e;--gray-mid:#5f5e5a;--gray-light:#f3f4f5;--gray-border:#d8dade;--white:#ffffff;--success:#2d7a3a;--success-bg:#eaf4ec;--warn:#8a5200;--warn-bg:#fef3dc;--danger:#a32d2d;--danger-bg:#fceaea;--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--shadow-sm:0 1px 3px rgba(0,0,0,.08);--shadow-md:0 4px 16px rgba(0,0,0,.10)}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;background:#f0f2f5;color:var(--gray-dark);min-height:100vh}
+  header{background:var(--blue-dark);color:#fff;padding:0 2rem;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+  .logo{display:flex;align-items:center;gap:12px}
+  .logo-mark{width:32px;height:32px;background:var(--blue-mid);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px}
+  .logo-text{font-size:15px;font-weight:500}
+  .logo-sub{font-size:11px;opacity:.55;margin-top:1px}
+  .pub-badge{font-size:11px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);padding:4px 10px;border-radius:999px;color:#fff}
+  .btn{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;padding:7px 16px;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--gray-border);background:var(--white);color:var(--gray-dark);transition:background .15s;white-space:nowrap}
+  .btn:hover{background:var(--gray-light)}
+  .btn-primary{background:var(--blue-mid);color:#fff;border-color:var(--blue-mid)}
+  .btn-primary:hover{background:#0f4a82}
+  .btn-outline{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}
+  .btn-outline:hover{background:rgba(255,255,255,.1)}
+  .btn-sm{padding:5px 11px;font-size:12px}
+  .page{max-width:1400px;margin:0 auto;padding:1.5rem 2rem 3rem}
+  .pub-banner{background:var(--blue-light);border:1px solid #b5d4f4;border-radius:var(--radius-lg);padding:14px 20px;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;font-size:13px}
+  .pub-banner strong{color:var(--blue-mid)}
+  .pub-banner span{color:var(--gray-mid);font-size:12px}
+  .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:1.25rem}
+  .metric{background:var(--white);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow-sm);border:1px solid var(--gray-border);position:relative;overflow:hidden}
+  .metric::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--blue-mid);border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+  .metric.m-warn::before{background:#e09a00}
+  .metric.m-dup::before{background:#7F77DD}
+  .metric-label{font-size:11px;font-weight:500;color:var(--gray-mid);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+  .metric-value{font-size:28px;font-weight:600;line-height:1}
+  .metric-sub{font-size:11px;color:var(--gray-mid);margin-top:5px}
+  .metric.clickable{cursor:pointer}
+  .metric.clickable:hover{background:var(--blue-light)}
+  .charts-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:1.25rem}
+  .chart-card{background:var(--white);border:1px solid var(--gray-border);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow-sm)}
+  .chart-card-title{font-size:12px;font-weight:600;color:var(--gray-mid);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px}
+  .data-panel{background:var(--white);border:1px solid var(--gray-border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:hidden}
+  .panel-header{padding:14px 18px;border-bottom:1px solid var(--gray-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;background:var(--gray-light)}
+  .panel-title{font-size:13px;font-weight:600}
+  .record-count{font-size:12px;color:var(--gray-mid)}
+  .filters{padding:12px 18px;border-bottom:1px solid var(--gray-border);display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:#fafafa}
+  .filter-group{display:flex;align-items:center;gap:6px}
+  .filter-group label{font-size:12px;color:var(--gray-mid);white-space:nowrap}
+  .filters input[type=text],.filters input[type=date],.filters select{font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 10px;height:32px;border:1px solid var(--gray-border);border-radius:var(--radius-sm);background:var(--white);color:var(--gray-dark)}
+  .filters input[type=text]{width:180px}
+  .filters input[type=date]{width:130px}
+  .filter-check{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer}
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:1000px}
+  th{padding:9px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-mid);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--gray-border);white-space:nowrap;background:var(--gray-light);cursor:pointer;user-select:none}
+  th:hover{background:#e8eaed}
+  th .sa{opacity:.3;margin-left:3px;font-size:10px}
+  th.sa-asc .sa::after{content:'▲';opacity:1}
+  th.sa-desc .sa::after{content:'▼';opacity:1}
+  td{padding:9px 12px;border-bottom:1px solid #f0f2f5;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:var(--blue-light)}
+  tr.dup-row td{background:#f5f0ff}
+  tr.dup-row:hover td{background:#ede6ff}
+  td.mono{font-family:'DM Mono',monospace;font-size:11.5px}
+  .badge{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px}
+  .badge-ok{background:var(--success-bg);color:var(--success)}
+  .badge-warn{background:var(--warn-bg);color:var(--warn)}
+  .badge-issue{background:var(--danger-bg);color:var(--danger)}
+  .badge-none{background:#f0f2f5;color:var(--gray-mid)}
+  .badge-dup{background:#EEEDFE;color:#534AB7}
+  .verify-cell{max-width:240px}
+  .verify-text{font-size:11px;color:var(--gray-mid);display:block;margin-top:3px;line-height:1.5;word-break:break-word}
+  .empty-state{text-align:center;padding:4rem 2rem;color:var(--gray-mid)}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;align-items:center;justify-content:center}
+  .modal-overlay.open{display:flex}
+  .modal{background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);padding:28px 32px;max-width:580px;width:90%;max-height:80vh;overflow-y:auto}
+  .modal-title{font-size:16px;font-weight:600;margin-bottom:6px}
+  .modal-sub{font-size:13px;color:var(--gray-mid);margin-bottom:20px}
+  .modal-close{float:right;cursor:pointer;font-size:20px;color:var(--gray-mid);border:none;background:none;margin-top:-4px}
+  .dup-group{margin-bottom:16px}
+  .dup-group-title{font-size:12px;font-weight:600;color:#534AB7;background:#EEEDFE;padding:5px 10px;border-radius:var(--radius-sm);margin-bottom:6px;font-family:'DM Mono',monospace}
+  .dup-item{font-size:12px;padding:6px 10px;border-bottom:1px solid var(--gray-border);display:flex;gap:12px;flex-wrap:wrap}
+  .dup-item:last-child{border-bottom:none}
+  .dup-item span{color:var(--gray-mid)}
+  .dup-item strong{color:var(--gray-dark)}
+  #toast{position:fixed;bottom:24px;right:24px;background:var(--blue-dark);color:#fff;font-size:13px;font-weight:500;padding:12px 20px;border-radius:var(--radius-md);box-shadow:var(--shadow-md);opacity:0;pointer-events:none;transition:opacity .3s;z-index:999}
+  #toast.show{opacity:1}
+  @media(max-width:900px){.metrics{grid-template-columns:repeat(2,1fr)}.charts-row{grid-template-columns:1fr}.page{padding:1rem}}
+<\/style>
+<\/head>
+<body>
+<header>
+  <div class="logo">
+    <div class="logo-mark">NCI<\/div>
+    <div>
+      <div class="logo-text">NCI Technology<\/div>
+      <div class="logo-sub">Returns Dashboard<\/div>
+    <\/div>
+  <\/div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span class="pub-badge">&#128247; Published ${generated}<\/span>
+    <button class="btn btn-outline btn-sm" onclick="exportReport()">&#128196; Create Report<\/button>
+  <\/div>
+<\/header>
+
+<div class="page">
+  <div class="pub-banner">
+    <div><strong>View-only dashboard<\/strong> — data published by NCI Technology<\/div>
+    <span>Last updated: ${generated}<\/span>
+  <\/div>
+
+  <div class="metrics">
+    <div class="metric"><div class="metric-label">Total Returns<\/div><div class="metric-value" id="m-total">0<\/div><div class="metric-sub">across all files<\/div><\/div>
+    <div class="metric"><div class="metric-label">Files Loaded<\/div><div class="metric-value" id="m-files">0<\/div><div class="metric-sub">sheets compiled<\/div><\/div>
+    <div class="metric m-warn"><div class="metric-label">Restore Fees<\/div><div class="metric-value" id="m-fee" style="color:var(--warn)">0<\/div><div class="metric-sub">charged returns<\/div><\/div>
+    <div class="metric m-dup clickable" onclick="showDuplicates()" title="Click to view duplicates"><div class="metric-label">Duplicate SNs<\/div><div class="metric-value" id="m-dup" style="color:#534AB7">0<\/div><div class="metric-sub">click to review<\/div><\/div>
+  <\/div>
+
+  <div class="charts-row">
+    <div class="chart-card"><div class="chart-card-title">Returns by issue type<\/div><div style="position:relative;height:220px"><canvas id="chartDesc"><\/canvas><\/div><\/div>
+    <div class="chart-card"><div class="chart-card-title">Most reported products<\/div><div style="position:relative;height:220px"><canvas id="chartProducts"><\/canvas><\/div><\/div>
+    <div class="chart-card"><div class="chart-card-title">Returns per file / batch<\/div><div style="position:relative;height:220px"><canvas id="chartFiles"><\/canvas><\/div><\/div>
+  <\/div>
+
+  <div class="data-panel">
+    <div class="panel-header">
+      <div><div class="panel-title">All Returns<\/div><div class="record-count" id="recordCount"><\/div><\/div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm" onclick="clearFilters()">Clear filters<\/button>
+        <button class="btn btn-sm btn-primary" onclick="exportReport()">Create Report (Excel)<\/button>
+      <\/div>
+    <\/div>
+    <div class="filters">
+      <div class="filter-group"><label>&#128269;<\/label><input type="text" id="search" placeholder="Search SN, description, findings…" oninput="applyFilters()"><\/div>
+      <div class="filter-group"><label>Product<\/label><select id="fProduct" onchange="applyFilters()"><option value="">All products<\/option><\/select><\/div>
+      <div class="filter-group"><label>Date from<\/label><input type="date" id="fDateFrom" onchange="applyFilters()"><\/div>
+      <div class="filter-group"><label>to<\/label><input type="date" id="fDateTo" onchange="applyFilters()"><\/div>
+      <div class="filter-group"><label>File<\/label><select id="fFile" onchange="applyFilters()"><option value="">All files<\/option><\/select><\/div>
+      <label class="filter-check"><input type="checkbox" id="fFee" onchange="applyFilters()"> Restore fee only<\/label>
+      <label class="filter-check"><input type="checkbox" id="fDups" onchange="applyFilters()"> Duplicates only<\/label>
+    <\/div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th onclick="sortBy('sn')">SN <span class="sa"><\/span><\/th>
+          <th onclick="sortBy('product')">Product <span class="sa"><\/span><\/th>
+          <th onclick="sortBy('reqDate')">Req. Date <span class="sa"><\/span><\/th>
+          <th onclick="sortBy('qty')">QTY <span class="sa"><\/span><\/th>
+          <th onclick="sortBy('description')">Description <span class="sa"><\/span><\/th>
+          <th onclick="sortBy('result')">Result <span class="sa"><\/span><\/th>
+          <th onclick="sortBy('rma')">RMA # <span class="sa"><\/span><\/th>
+          <th onclick="sortBy('recvDate')">Recv. Date <span class="sa"><\/span><\/th>
+          <th>Verify / Findings<\/th>
+          <th onclick="sortBy('restoreFee')">Restore Fee <span class="sa"><\/span><\/th>
+          <th>Overlay<\/th><th>Box<\/th><th>Battery<\/th>
+          <th onclick="sortBy('sourceFile')">Source File <span class="sa"><\/span><\/th>
+        <\/tr><\/thead>
+        <tbody id="tableBody"><\/tbody>
+      <\/table>
+      <div class="empty-state" id="emptyState"><p>No records match your filters.<\/p><\/div>
+    <\/div>
+  <\/div>
+<\/div>
+
+<div class="modal-overlay" id="dupModal">
+  <div class="modal">
+    <button class="modal-close" onclick="document.getElementById('dupModal').classList.remove('open')">×<\/button>
+    <div class="modal-title">⚠ Duplicate Serial Numbers<\/div>
+    <div class="modal-sub" id="dupModalSub"><\/div>
+    <div id="dupModalBody"><\/div>
+    <div style="margin-top:20px;text-align:right"><button class="btn btn-primary btn-sm" onclick="document.getElementById('dupModal').classList.remove('open')">Close<\/button><\/div>
+  <\/div>
+<\/div>
+<div id="toast"><\/div>
+
+<script>
+const allRows = ${data};
+const loadedFiles = ${files};
+let filteredRows = [];
+let sortCol = '', sortDir = 1;
+let chartDesc = null, chartFiles = null, chartProducts = null;
+const dupSNs = new Set();
+
+function init() {
+  const snCount = {};
+  allRows.forEach(r => { if(r.sn) snCount[r.sn]=(snCount[r.sn]||0)+1; });
+  Object.keys(snCount).filter(s=>snCount[s]>1).forEach(s=>dupSNs.add(s));
+  document.getElementById('m-total').textContent = allRows.length;
+  document.getElementById('m-files').textContent = loadedFiles.length;
+  document.getElementById('m-fee').textContent   = allRows.filter(r=>r.restoreFee&&r.restoreFee.toString().trim()).length;
+  document.getElementById('m-dup').textContent   = dupSNs.size;
+  updateProductFilter(); updateFileFilter(); applyFilters(); updateCharts();
+}
+
+function updateProductFilter() {
+  const products = [...new Set(allRows.map(r=>r.product).filter(Boolean))].sort();
+  document.getElementById('fProduct').innerHTML = '<option value="">All products<\/option>' + products.map(p=>\`<option value="\${p}">\${p}<\/option>\`).join('');
+}
+function updateFileFilter() {
+  document.getElementById('fFile').innerHTML = '<option value="">All files<\/option>' + loadedFiles.map(f=>\`<option value="\${f}">\${f}<\/option>\`).join('');
+}
+
+function parseDate(str) {
+  if(!str) return null;
+  const d = new Date(str.toString().trim());
+  if(!isNaN(d)) return d;
+  const p = str.toString().split('/');
+  if(p.length===3) return new Date(+p[2],+p[0]-1,+p[1]);
+  return null;
+}
+
+function applyFilters() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const prod   = document.getElementById('fProduct').value;
+  const dateFrom = document.getElementById('fDateFrom').value;
+  const dateTo   = document.getElementById('fDateTo').value;
+  const fileF  = document.getElementById('fFile').value;
+  const fee    = document.getElementById('fFee').checked;
+  const dups   = document.getElementById('fDups').checked;
+  const fromTs = dateFrom ? new Date(dateFrom).getTime() : null;
+  const toTs   = dateTo   ? new Date(dateTo+'T23:59:59').getTime() : null;
+  filteredRows = allRows.filter(r => {
+    if(search && !\`\${r.sn} \${r.description} \${r.verify} \${r.rma} \${r.product}\`.toLowerCase().includes(search)) return false;
+    if(prod && r.product.toString()!==prod) return false;
+    if(fromTs||toTs){const rTs=parseDate(r.reqDate)?.getTime();if(fromTs&&(!rTs||rTs<fromTs))return false;if(toTs&&(!rTs||rTs>toTs))return false;}
+    if(fileF && r.sourceFile!==fileF) return false;
+    if(fee && !(r.restoreFee&&r.restoreFee.toString().trim())) return false;
+    if(dups && !dupSNs.has(r.sn)) return false;
+    return true;
+  });
+  if(sortCol) filteredRows.sort((a,b)=>{let av=a[sortCol]||'',bv=b[sortCol]||'';return av<bv?-sortDir:av>bv?sortDir:0;});
+  renderTable();
+  document.getElementById('recordCount').textContent = filteredRows.length+' of '+allRows.length+' records';
+}
+
+function clearFilters() {
+  document.getElementById('search').value='';
+  document.getElementById('fProduct').value='';
+  document.getElementById('fDateFrom').value='';
+  document.getElementById('fDateTo').value='';
+  document.getElementById('fFile').value='';
+  document.getElementById('fFee').checked=false;
+  document.getElementById('fDups').checked=false;
+  applyFilters();
+}
+
+function sortBy(col) {
+  if(sortCol===col) sortDir*=-1; else{sortCol=col;sortDir=1;}
+  document.querySelectorAll('th').forEach(th=>th.classList.remove('sa-asc','sa-desc'));
+  const cols=['sn','product','reqDate','qty','description','result','rma','','','restoreFee','','','','sourceFile'];
+  const idx=cols.indexOf(col);
+  if(idx>=0) document.querySelectorAll('th')[idx].classList.add(sortDir===1?'sa-asc':'sa-desc');
+  applyFilters();
+}
+
+function getVerifyBadge(v) {
+  if(!v||!v.trim()) return '<span class="badge badge-none">—<\/span>';
+  const vl=v.toLowerCase();
+  if(vl.includes('not ')||vl.includes('wrong')||vl.includes('missing')||vl.includes('fail')||vl.includes('no battery')) return '<span class="badge badge-issue">Issue<\/span>';
+  if(vl.includes('good')||vl.includes(' ok')||vl.includes('pass')) return '<span class="badge badge-ok">OK<\/span>';
+  return '<span class="badge badge-warn">Review<\/span>';
+}
+
+function renderTable() {
+  const tbody=document.getElementById('tableBody');
+  const empty=document.getElementById('emptyState');
+  if(!filteredRows.length){tbody.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  tbody.innerHTML=filteredRows.map(r=>{
+    const isDup=dupSNs.has(r.sn);
+    return \`<tr class="\${isDup?'dup-row':''}">
+      <td class="mono"><strong>\${r.sn}<\/strong>\${isDup?' <span class="badge badge-dup">DUP<\/span>':''}<\/td>
+      <td>\${r.product}<\/td>
+      <td style="white-space:nowrap">\${r.reqDate}<\/td>
+      <td style="text-align:center">\${r.qty}<\/td>
+      <td style="max-width:180px;word-break:break-word">\${r.description}<\/td>
+      <td>\${r.result}<\/td>
+      <td class="mono">\${r.rma}<\/td>
+      <td style="white-space:nowrap">\${r.recvDate}<\/td>
+      <td class="verify-cell">\${getVerifyBadge(r.verify)}\${r.verify?\`<span class="verify-text">\${r.verify.slice(0,100)}\${r.verify.length>100?'…':''}<\/span>\`:''}<\/td>
+      <td style="text-align:center">\${r.restoreFee&&r.restoreFee.toString().trim()?'<span class="badge badge-warn">Yes<\/span>':'<span style="color:#ccc">—<\/span>'}<\/td>
+      <td style="text-align:center">\${r.overlay||'<span style="color:#ccc">—<\/span>'}<\/td>
+      <td style="text-align:center">\${r.box||'<span style="color:#ccc">—<\/span>'}<\/td>
+      <td style="text-align:center">\${r.battery||'<span style="color:#ccc">—<\/span>'}<\/td>
+      <td style="font-size:11px;color:var(--gray-mid)">\${r.sourceFile}<\/td>
+    <\/tr>\`;
+  }).join('');
+}
+
+function updateCharts() {
+  const colors=['#185FA5','#1D9E75','#BA7517','#D4537E','#7F77DD','#D85A30','#639922','#E24B4A','#5DCAA5','#F09595'];
+  const descMap={};allRows.forEach(r=>{const d=r.description||'Unknown';descMap[d]=(descMap[d]||0)+1;});
+  const descSorted=Object.entries(descMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const prodMap={};allRows.forEach(r=>{const p=r.product?r.product.toString():'Unknown';prodMap[p]=(prodMap[p]||0)+1;});
+  const prodSorted=Object.entries(prodMap).sort((a,b)=>b[1]-a[1]);
+  const fileMap={};allRows.forEach(r=>{fileMap[r.sourceFile]=(fileMap[r.sourceFile]||0)+1;});
+  if(chartDesc) chartDesc.destroy();
+  chartDesc=new Chart(document.getElementById('chartDesc'),{type:'bar',data:{labels:descSorted.map(([k])=>k.length>24?k.slice(0,24)+'…':k),datasets:[{data:descSorted.map(([,v])=>v),backgroundColor:colors.slice(0,descSorted.length),borderRadius:5,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,font:{size:11}}},x:{ticks:{font:{size:10}}}}}});
+  if(chartProducts) chartProducts.destroy();
+  chartProducts=new Chart(document.getElementById('chartProducts'),{type:'bar',data:{labels:prodSorted.map(([k])=>k.length>18?k.slice(0,18)+'…':k),datasets:[{data:prodSorted.map(([,v])=>v),backgroundColor:prodSorted.map((_,i)=>colors[i%colors.length]),borderRadius:5,borderWidth:0}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{stepSize:1,font:{size:11}}},y:{ticks:{font:{size:11}}}}}});
+  const fileEntries=Object.entries(fileMap);
+  if(chartFiles) chartFiles.destroy();
+  chartFiles=new Chart(document.getElementById('chartFiles'),{type:'bar',data:{labels:fileEntries.map(([k])=>k.replace(/\\.xlsx?/i,'').slice(-20)),datasets:[{data:fileEntries.map(([,v])=>v),backgroundColor:'#185FA5',borderRadius:5,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,font:{size:11}}},x:{ticks:{font:{size:10}}}}}});
+}
+
+function showDuplicates() {
+  if(dupSNs.size===0){toast('No duplicate serial numbers found');return;}
+  document.getElementById('dupModalSub').textContent=dupSNs.size+' serial number'+(dupSNs.size>1?' appears':' appears')+' more than once.';
+  let html='';
+  dupSNs.forEach(sn=>{
+    const matches=allRows.filter(r=>r.sn===sn);
+    html+=\`<div class="dup-group"><div class="dup-group-title">\${sn} — \${matches.length} occurrences<\/div>\`;
+    matches.forEach(r=>{html+=\`<div class="dup-item"><div><span>Date: <\/span><strong>\${r.reqDate||'—'}<\/strong><\/div><div><span>Product: <\/span><strong>\${r.product||'—'}<\/strong><\/div><div><span>File: <\/span><strong>\${r.sourceFile}<\/strong><\/div><\/div>\`;});
+    html+='<\/div>';
+  });
+  document.getElementById('dupModalBody').innerHTML=html;
+  document.getElementById('dupModal').classList.add('open');
+}
+
+function exportReport() {
+  if(!filteredRows.length){toast('No data to export');return;}
+  const wb=XLSX.utils.book_new();
+  const fees=filteredRows.filter(r=>r.restoreFee&&r.restoreFee.toString().trim());
+  const dups=filteredRows.filter(r=>dupSNs.has(r.sn));
+  const descMap={};filteredRows.forEach(r=>{const d=r.description||'Unknown';descMap[d]=(descMap[d]||0)+1;});
+  const summary=[['NCI Technology — Returns Report'],[''],['Generated',new Date().toLocaleString()],['Files included',loadedFiles.join(' | ')],[''],['METRIC','VALUE'],['Total records',filteredRows.length],['Restore fees charged',fees.length],['Duplicate SNs',dupSNs.size],['Unique products',new Set(filteredRows.map(r=>r.product)).size],[''],['TOP ISSUE TYPES','COUNT']];
+  Object.entries(descMap).sort((a,b)=>b[1]-a[1]).slice(0,10).forEach(([k,v])=>summary.push([k,v]));
+  const ws2=XLSX.utils.aoa_to_sheet(summary);ws2['!cols']=[{wch:35},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws2,'Summary');
+  const headers=['SN','Product','Req Date','QTY','Description','Result','RMA#','Recv Date','Verify / Findings','Restore Fee','Overlay','Box','Battery','Source File'];
+  const toRow=r=>[r.sn,r.product,r.reqDate,r.qty,r.description,r.result,r.rma,r.recvDate,r.verify,r.restoreFee,r.overlay,r.box,r.battery,r.sourceFile];
+  const cw=[14,12,12,6,30,12,10,12,45,12,10,8,10,20].map(w=>({wch:w}));
+  const ws=XLSX.utils.aoa_to_sheet([headers,...filteredRows.map(toRow)]);ws['!cols']=cw;
+  XLSX.utils.book_append_sheet(wb,ws,'All Returns');
+  if(dups.length){const wsD=XLSX.utils.aoa_to_sheet([headers,...dups.map(toRow)]);wsD['!cols']=cw;XLSX.utils.book_append_sheet(wb,wsD,'Duplicate SNs');}
+  XLSX.writeFile(wb,'returns_report.xlsx');
+  toast('Report exported');
+}
+
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3500);}
+window.addEventListener('load',init);
+<\/script>
+<\/body>
+<\/html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'dashboard.html';
+  a.click();
+  toast('Dashboard published! Upload dashboard.html to GitHub.');
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+window.addEventListener('load', loadFromStorage);
+</script>
+</body>
+</html>
