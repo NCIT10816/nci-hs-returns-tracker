@@ -215,6 +215,17 @@
   }
   #toast.show { opacity: 1; }
 
+  .desc-editable {
+    display:block; width:100%; font-family:'DM Sans',sans-serif; font-size:12.5px;
+    border:none; outline:none; background:transparent; color:var(--gray-dark);
+    cursor:text; padding:2px 4px; line-height:1.5;
+    word-break:break-word; white-space:pre-wrap;
+    border-radius:4px; min-height:1.4em;
+  }
+  .desc-editable:focus {
+    background:var(--blue-light);
+    outline:2px solid var(--blue-mid);
+  }
   @media (max-width: 900px) {
     .metrics { grid-template-columns: repeat(2, 1fr); }
     .charts-row { grid-template-columns: 1fr; }
@@ -283,16 +294,23 @@
 
   <div class="charts-row" style="grid-template-columns:1fr 1fr 1fr">
     <div class="chart-card">
-      <div class="chart-card-title">Returns by issue type</div>
+      <div class="chart-card-title">Returns by Description Type <span style="font-weight:400;opacity:.6">(Top 8)</span></div>
       <div style="position:relative;height:220px"><canvas id="chartDesc"></canvas></div>
     </div>
     <div class="chart-card">
       <div class="chart-card-title">Most reported products</div>
       <div style="position:relative;height:220px"><canvas id="chartProducts"></canvas></div>
     </div>
+  </div>
+
+  <div class="charts-row" style="grid-template-columns:1fr 1fr;margin-bottom:1.25rem">
     <div class="chart-card">
-      <div class="chart-card-title">Returns per file / batch</div>
-      <div style="position:relative;height:220px"><canvas id="chartFiles"></canvas></div>
+      <div class="chart-card-title">Product Returns — % of Total</div>
+      <div style="position:relative;height:240px"><canvas id="chartPie"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Returns Over Time <span style="font-weight:400;opacity:.6">(by month)</span></div>
+      <div style="position:relative;height:240px"><canvas id="chartTrend"></canvas></div>
     </div>
   </div>
 
@@ -395,12 +413,15 @@ let sortDir = 1;
 let chartDesc = null;
 let chartFiles = null;
 let chartProducts = null;
+let chartPie = null;
+let chartTrend = null;
 let dupSNs = new Set();
+let descOverrides = {}; // kept for backward compat with saved data
 
 // ── Storage ──
 function saveToStorage() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ allRows, loadedFiles }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ allRows, loadedFiles, descOverrides }));
     const el = document.getElementById('saveStatus');
     el.style.display = 'inline';
     clearTimeout(el._t);
@@ -413,8 +434,9 @@ function loadFromStorage() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const data = JSON.parse(raw);
-    allRows     = data.allRows     || [];
-    loadedFiles = data.loadedFiles || [];
+    allRows       = data.allRows       || [];
+    loadedFiles   = data.loadedFiles   || [];
+    descOverrides = data.descOverrides || {};
     if (allRows.length) { refreshAll(); toast(allRows.length + ' records restored from last session'); }
   } catch(e) { localStorage.removeItem(STORAGE_KEY); }
 }
@@ -521,6 +543,14 @@ function refreshAll() {
   findDuplicates();
   applyFilters();
   updateMetrics();
+  updateCharts();
+}
+
+function updateDesc(idx, newVal) {
+  const trimmed = newVal.trim();
+  if (!trimmed || trimmed === allRows[idx].description) return;
+  allRows[idx].description = trimmed;
+  saveToStorage();
   updateCharts();
 }
 
@@ -713,7 +743,10 @@ function renderTable() {
       <td>${r.product}</td>
       <td style="white-space:nowrap">${r.reqDate}</td>
       <td style="text-align:center">${r.qty}</td>
-      <td style="max-width:180px;word-break:break-word">${r.description}</td>
+      <td style="max-width:180px"><div class="desc-editable" contenteditable="true"
+        onblur="updateDesc(${allRows.indexOf(r)}, this.innerText)"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+        title="Click to edit description">${r.description}</div></td>
       <td>${r.result}</td>
       <td class="mono">${r.rma}</td>
       <td style="white-space:nowrap">${r.recvDate}</td>
@@ -733,58 +766,97 @@ function renderTable() {
 
 function updateCharts() {
   const colors = ['#185FA5','#1D9E75','#BA7517','#D4537E','#7F77DD','#D85A30','#639922','#E24B4A','#5DCAA5','#F09595'];
+
+  // Apply overrides to descriptions
   const descMap = {};
-  allRows.forEach(r => { const d = r.description||'Unknown'; descMap[d]=(descMap[d]||0)+1; });
-  const descSorted = Object.entries(descMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  allRows.forEach(r => {
+    const label = r.description || 'Unknown';
+    descMap[label] = (descMap[label] || 0) + 1;
+  });
+  const descSorted = Object.entries(descMap).sort((a,b) => b[1]-a[1]).slice(0,8);
 
   const prodMap = {};
   allRows.forEach(r => { const p = r.product ? r.product.toString() : 'Unknown'; prodMap[p]=(prodMap[p]||0)+1; });
-  const prodSorted = Object.entries(prodMap).sort((a,b)=>b[1]-a[1]);
+  const prodSorted = Object.entries(prodMap).sort((a,b) => b[1]-a[1]);
 
   const fileMap = {};
   allRows.forEach(r => { fileMap[r.sourceFile]=(fileMap[r.sourceFile]||0)+1; });
 
+  // Returns by Description Type (Top 8)
   if (chartDesc) chartDesc.destroy();
   chartDesc = new Chart(document.getElementById('chartDesc'), {
     type: 'bar',
     data: {
-      labels: descSorted.map(([k]) => k.length > 24 ? k.slice(0,24)+'…' : k),
+      labels: descSorted.map(([k]) => k.length > 28 ? k.slice(0,28)+'…' : k),
       datasets: [{ data: descSorted.map(([,v])=>v), backgroundColor: colors.slice(0,descSorted.length), borderRadius: 5, borderWidth: 0 }]
     },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } } }, x: { ticks: { font: { size: 10 } } } } }
   });
 
+  // Most Reported Products
   if (chartProducts) chartProducts.destroy();
   chartProducts = new Chart(document.getElementById('chartProducts'), {
     type: 'bar',
     data: {
       labels: prodSorted.map(([k]) => k.length > 18 ? k.slice(0,18)+'…' : k),
-      datasets: [{
-        data: prodSorted.map(([,v])=>v),
-        backgroundColor: prodSorted.map((_,i) => colors[i % colors.length]),
-        borderRadius: 5, borderWidth: 0
-      }]
+      datasets: [{ data: prodSorted.map(([,v])=>v), backgroundColor: prodSorted.map((_,i) => colors[i % colors.length]), borderRadius: 5, borderWidth: 0 }]
+    },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } } }, y: { ticks: { font: { size: 11 } } } } }
+  });
+
+  // NSP Submitted — removed
+
+  // Product Returns — % of Total (Pie)
+  if (chartPie) chartPie.destroy();
+  chartPie = new Chart(document.getElementById('chartPie'), {
+    type: 'pie',
+    data: {
+      labels: prodSorted.map(([k]) => k),
+      datasets: [{ data: prodSorted.map(([,v])=>v), backgroundColor: prodSorted.map((_,i) => colors[i % colors.length]), borderWidth: 1, borderColor: '#fff' }]
     },
     options: {
-      indexAxis: 'y',
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } } },
-        y: { ticks: { font: { size: 11 } } }
+      plugins: {
+        legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12, padding: 10 } },
+        tooltip: { callbacks: { label: ctx => {
+          const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+          const pct = total ? ((ctx.parsed / total)*100).toFixed(1) : 0;
+          return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
+        }}}
       }
     }
   });
 
-  const fileEntries = Object.entries(fileMap);
-  if (chartFiles) chartFiles.destroy();
-  chartFiles = new Chart(document.getElementById('chartFiles'), {
-    type: 'bar',
+  // Returns Over Time (by month)
+  const monthMap = {};
+  allRows.forEach(r => {
+    if (!r.reqDate) return;
+    const d = new Date(r.reqDate);
+    if (isNaN(d)) return;
+    const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    monthMap[key] = (monthMap[key] || 0) + 1;
+  });
+  const monthEntries = Object.entries(monthMap).sort((a,b) => a[0].localeCompare(b[0]));
+  if (chartTrend) chartTrend.destroy();
+  chartTrend = new Chart(document.getElementById('chartTrend'), {
+    type: 'line',
     data: {
-      labels: fileEntries.map(([k]) => k.replace(/\.xlsx?/i,'').slice(-20)),
-      datasets: [{ data: fileEntries.map(([,v])=>v), backgroundColor: '#185FA5', borderRadius: 5, borderWidth: 0 }]
+      labels: monthEntries.map(([k]) => {
+        const [y,m] = k.split('-');
+        return new Date(+y, +m-1).toLocaleString('default',{month:'short',year:'2-digit'});
+      }),
+      datasets: [{
+        data: monthEntries.map(([,v])=>v),
+        borderColor: '#185FA5', backgroundColor: 'rgba(24,95,165,0.08)',
+        borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#185FA5',
+        fill: true, tension: 0.3
+      }]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } } }, x: { ticks: { font: { size: 10 } } } } }
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } } }, x: { ticks: { font: { size: 10 } } } }
+    }
   });
 }
 
@@ -857,6 +929,7 @@ function publishDashboard() {
 
   const data = JSON.stringify(allRows);
   const files = JSON.stringify(loadedFiles);
+  const overrides = JSON.stringify(descOverrides);
   const generated = new Date().toLocaleString();
 
   const html = `<!DOCTYPE html>
@@ -981,9 +1054,13 @@ function publishDashboard() {
   <\/div>
 
   <div class="charts-row">
-    <div class="chart-card"><div class="chart-card-title">Returns by issue type<\/div><div style="position:relative;height:220px"><canvas id="chartDesc"><\/canvas><\/div><\/div>
+    <div class="chart-card"><div class="chart-card-title">Returns by Description Type (Top 8)<\/div><div style="position:relative;height:220px"><canvas id="chartDesc"><\/canvas><\/div><\/div>
     <div class="chart-card"><div class="chart-card-title">Most reported products<\/div><div style="position:relative;height:220px"><canvas id="chartProducts"><\/canvas><\/div><\/div>
-    <div class="chart-card"><div class="chart-card-title">Returns per file / batch<\/div><div style="position:relative;height:220px"><canvas id="chartFiles"><\/canvas><\/div><\/div>
+  <\/div>
+
+  <div class="charts-row" style="grid-template-columns:1fr 1fr;margin-bottom:1.25rem">
+    <div class="chart-card"><div class="chart-card-title">Product Returns — % of Total<\/div><div style="position:relative;height:240px"><canvas id="chartPie"><\/canvas><\/div><\/div>
+    <div class="chart-card"><div class="chart-card-title">Returns Over Time <span style="font-weight:400;opacity:.6">(by month)<\/span><\/div><div style="position:relative;height:240px"><canvas id="chartTrend"><\/canvas><\/div><\/div>
   <\/div>
 
   <div class="data-panel">
@@ -1042,7 +1119,7 @@ const allRows = ${data};
 const loadedFiles = ${files};
 let filteredRows = [];
 let sortCol = '', sortDir = 1;
-let chartDesc = null, chartFiles = null, chartProducts = null;
+let chartDesc = null, chartFiles = null, chartProducts = null, chartPie = null, chartTrend = null;
 const dupSNs = new Set();
 
 function init() {
@@ -1153,18 +1230,28 @@ function renderTable() {
 
 function updateCharts() {
   const colors=['#185FA5','#1D9E75','#BA7517','#D4537E','#7F77DD','#D85A30','#639922','#E24B4A','#5DCAA5','#F09595'];
-  const descMap={};allRows.forEach(r=>{const d=r.description||'Unknown';descMap[d]=(descMap[d]||0)+1;});
+  const overrides=${overrides};
+  const descMap={};
+  allRows.forEach(r=>{
+    const label=r.description||'Unknown';
+    descMap[label]=(descMap[label]||0)+1;
+  });
   const descSorted=Object.entries(descMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
   const prodMap={};allRows.forEach(r=>{const p=r.product?r.product.toString():'Unknown';prodMap[p]=(prodMap[p]||0)+1;});
   const prodSorted=Object.entries(prodMap).sort((a,b)=>b[1]-a[1]);
   const fileMap={};allRows.forEach(r=>{fileMap[r.sourceFile]=(fileMap[r.sourceFile]||0)+1;});
   if(chartDesc) chartDesc.destroy();
-  chartDesc=new Chart(document.getElementById('chartDesc'),{type:'bar',data:{labels:descSorted.map(([k])=>k.length>24?k.slice(0,24)+'…':k),datasets:[{data:descSorted.map(([,v])=>v),backgroundColor:colors.slice(0,descSorted.length),borderRadius:5,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,font:{size:11}}},x:{ticks:{font:{size:10}}}}}});
+  chartDesc=new Chart(document.getElementById('chartDesc'),{type:'bar',data:{labels:descSorted.map(([k])=>k.length>28?k.slice(0,28)+'…':k),datasets:[{data:descSorted.map(([,v])=>v),backgroundColor:colors.slice(0,descSorted.length),borderRadius:5,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,font:{size:11}}},x:{ticks:{font:{size:10}}}}}});
   if(chartProducts) chartProducts.destroy();
   chartProducts=new Chart(document.getElementById('chartProducts'),{type:'bar',data:{labels:prodSorted.map(([k])=>k.length>18?k.slice(0,18)+'…':k),datasets:[{data:prodSorted.map(([,v])=>v),backgroundColor:prodSorted.map((_,i)=>colors[i%colors.length]),borderRadius:5,borderWidth:0}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{stepSize:1,font:{size:11}}},y:{ticks:{font:{size:11}}}}}});
-  const fileEntries=Object.entries(fileMap);
-  if(chartFiles) chartFiles.destroy();
-  chartFiles=new Chart(document.getElementById('chartFiles'),{type:'bar',data:{labels:fileEntries.map(([k])=>k.replace(/\\.xlsx?/i,'').slice(-20)),datasets:[{data:fileEntries.map(([,v])=>v),backgroundColor:'#185FA5',borderRadius:5,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,font:{size:11}}},x:{ticks:{font:{size:10}}}}}});
+  if(chartFiles) chartFiles.destroy(); // removed NSP chart, kept variable for compatibility
+  if(chartPie) chartPie.destroy();
+  chartPie=new Chart(document.getElementById('chartPie'),{type:'pie',data:{labels:prodSorted.map(([k])=>k),datasets:[{data:prodSorted.map(([,v])=>v),backgroundColor:prodSorted.map((_,i)=>colors[i%colors.length]),borderWidth:1,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11},boxWidth:12,padding:10}},tooltip:{callbacks:{label:ctx=>{const total=ctx.dataset.data.reduce((a,b)=>a+b,0);const pct=total?((ctx.parsed/total)*100).toFixed(1):0;return \` \${ctx.label}: \${ctx.parsed} (\${pct}%)\`;}}}}}});
+  const monthMap={};
+  allRows.forEach(r=>{if(!r.reqDate)return;const d=new Date(r.reqDate);if(isNaN(d))return;const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');monthMap[key]=(monthMap[key]||0)+1;});
+  const monthEntries=Object.entries(monthMap).sort((a,b)=>a[0].localeCompare(b[0]));
+  if(chartTrend) chartTrend.destroy();
+  chartTrend=new Chart(document.getElementById('chartTrend'),{type:'line',data:{labels:monthEntries.map(([k])=>{const[y,m]=k.split('-');return new Date(+y,+m-1).toLocaleString('default',{month:'short',year:'2-digit'});}),datasets:[{data:monthEntries.map(([,v])=>v),borderColor:'#185FA5',backgroundColor:'rgba(24,95,165,0.08)',borderWidth:2,pointRadius:4,pointBackgroundColor:'#185FA5',fill:true,tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,font:{size:11}}},x:{ticks:{font:{size:10}}}}}});
 }
 
 function showDuplicates() {
