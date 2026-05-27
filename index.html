@@ -279,7 +279,7 @@
     <span id="saveStatus" style="font-size:11px;opacity:0.5;margin-right:4px;display:none">&#10003; Auto-saved</span>
     <button class="btn btn-outline btn-sm" onclick="backupData()">&#128190; Backup Data</button>
     <button class="btn btn-outline btn-sm" onclick="document.getElementById('restoreInput').click()">&#9099; Restore Backup</button>
-    <input type="file" id="restoreInput" accept=".xlsx" style="display:none" onchange="restoreData(event)">
+    <input type="file" id="restoreInput" accept=".xlsx,.json" style="display:none" onchange="restoreData(event)">
     <button class="btn btn-outline btn-sm" onclick="exportReport()">&#128196; Create Report</button>
     <button class="btn btn-outline btn-sm" onclick="publishDashboard()" style="background:rgba(24,95,165,.5);border-color:rgba(255,255,255,.6)">&#127758; Publish Dashboard</button>
     <button class="btn btn-outline btn-sm" onclick="clearAll()" style="color:rgba(255,255,255,.6);border-color:rgba(255,255,255,.2)">Clear all</button>
@@ -492,6 +492,26 @@ function restoreData(e) {
   if (!file) return;
   e.target.value = '';
   const reader = new FileReader();
+
+  // JSON backup (older format)
+  if (file.name.endsWith('.json')) {
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        allRows       = data.allRows       || [];
+        loadedFiles   = data.loadedFiles   || [];
+        descOverrides = data.descOverrides || {};
+        if (!allRows.length) { toast('Backup file appears empty'); return; }
+        refreshAll();
+        saveToStorage();
+        toast(allRows.length + ' records restored from backup!');
+      } catch(err) { toast('Error reading backup file'); }
+    };
+    reader.readAsText(file);
+    return;
+  }
+
+  // Excel backup (.xlsx)
   reader.onload = ev => {
     try {
       const wb = XLSX.read(ev.target.result, { type: 'array', cellDates: true });
@@ -998,6 +1018,8 @@ function saveEditRow(idx) {
 function cancelEditRow(idx) {
   applyFilters();
 }
+
+function deleteRow(idx) {
   const row = allRows[idx];
   if (!row) return;
   if (!confirm(`Delete this record?\n\nSN: ${row.sn || '—'}\nProduct: ${row.product || '—'}\nDate: ${row.reqDate || '—'}\n\nThis cannot be undone.`)) return;
