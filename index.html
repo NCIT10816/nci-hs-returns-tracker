@@ -169,6 +169,34 @@
     line-height: 1;
   }
   .delete-btn:hover { color: var(--danger); background: var(--danger-bg); }
+  .edit-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--gray-border); font-size: 15px; padding: 2px 4px;
+    border-radius: var(--radius-sm); transition: color .15s, background .15s;
+    line-height: 1;
+  }
+  .edit-btn:hover { color: var(--blue-mid); background: var(--blue-light); }
+  .action-btns { display: flex; gap: 4px; justify-content: center; }
+  .edit-input {
+    font-family: 'DM Sans', sans-serif; font-size: 12px; width: 100%;
+    border: 1px solid var(--blue-mid); border-radius: var(--radius-sm);
+    padding: 3px 6px; background: var(--white); color: var(--gray-dark);
+    box-sizing: border-box;
+  }
+  .edit-input:focus { outline: none; border-color: var(--blue-dark); }
+  .save-btn {
+    background: var(--blue-mid); color: #fff; border: none; cursor: pointer;
+    font-size: 11px; font-weight: 600; padding: 3px 10px;
+    border-radius: var(--radius-sm); white-space: nowrap;
+  }
+  .save-btn:hover { background: var(--blue-dark); }
+  .cancel-btn {
+    background: var(--gray-border); color: var(--gray-dark); border: none; cursor: pointer;
+    font-size: 11px; font-weight: 600; padding: 3px 10px;
+    border-radius: var(--radius-sm); white-space: nowrap;
+  }
+  .cancel-btn:hover { background: var(--gray-mid); color: #fff; }
+  tr.editing td { background: #f0f6ff !important; }
 
   .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 999px; letter-spacing: 0.2px; }
   .badge-ok     { background: var(--success-bg); color: var(--success); }
@@ -182,8 +210,8 @@
   .empty-state h3 { font-size: 15px; font-weight: 500; margin-bottom: 6px; color: var(--gray-dark); }
   .empty-state p  { font-size: 13px; }
   .panel-actions { display: flex; gap: 8px; }
-  .verify-cell { max-width: 240px; }
-  .verify-text { font-size: 11px; color: var(--gray-mid); display: block; margin-top: 3px; line-height: 1.5; word-break: break-word; }
+  .verify-cell { max-width: 260px; word-break: break-word; white-space: normal; }
+  .verify-text { font-size: 11px; color: var(--gray-mid); display: block; margin-top: 3px; line-height: 1.5; word-break: break-word; white-space: normal; }
 
   /* ── Modal ── */
   .modal-overlay {
@@ -738,13 +766,14 @@ function renderTable() {
   empty.style.display = 'none';
   tbody.innerHTML = filteredRows.map(r => {
     const isDup = dupSNs.has(r.sn);
-    return `<tr class="${isDup ? 'dup-row' : ''}">
+    const idx = allRows.indexOf(r);
+    return `<tr class="${isDup ? 'dup-row' : ''}" id="row-${idx}">
       <td class="mono"><strong>${r.sn}</strong>${isDup ? ' <span class="badge badge-dup">DUP</span>' : ''}</td>
       <td>${r.product}</td>
       <td style="white-space:nowrap">${r.reqDate}</td>
       <td style="text-align:center">${r.qty}</td>
       <td style="max-width:180px"><div class="desc-editable" contenteditable="true"
-        onblur="updateDesc(${allRows.indexOf(r)}, this.innerText)"
+        onblur="updateDesc(${idx}, this.innerText)"
         onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
         title="Click to edit description">${r.description}</div></td>
       <td>${r.result}</td>
@@ -752,14 +781,19 @@ function renderTable() {
       <td style="white-space:nowrap">${r.recvDate}</td>
       <td class="verify-cell">
         ${getVerifyBadge(r.verify)}
-        ${r.verify ? `<span class="verify-text">${r.verify.slice(0,100)}${r.verify.length>100?'…':''}</span>` : ''}
+        ${r.verify ? `<span class="verify-text">${r.verify}</span>` : ''}
       </td>
       <td style="text-align:center">${r.restoreFee && r.restoreFee.toString().trim() ? '<span class="badge badge-warn">Yes</span>' : '<span style="color:#ccc">—</span>'}</td>
       <td style="text-align:center">${r.overlay || '<span style="color:#ccc">—</span>'}</td>
       <td style="text-align:center">${r.box || '<span style="color:#ccc">—</span>'}</td>
       <td style="text-align:center">${r.battery || '<span style="color:#ccc">—</span>'}</td>
       <td style="font-size:11px;color:var(--gray-mid);max-width:120px;word-break:break-all">${r.sourceFile}</td>
-      <td style="text-align:center"><button class="delete-btn" onclick="deleteRow(${allRows.indexOf(r)})" title="Delete this record">✕</button></td>
+      <td style="text-align:center">
+        <div class="action-btns">
+          <button class="edit-btn" onclick="startEditRow(${idx})" title="Edit this record">✏️</button>
+          <button class="delete-btn" onclick="deleteRow(${idx})" title="Delete this record">✕</button>
+        </div>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -911,7 +945,59 @@ function exportReport() {
   toast('Report exported with ' + sheetCount + ' sheets');
 }
 
-function deleteRow(idx) {
+function startEditRow(idx) {
+  const r = allRows[idx];
+  const tr = document.getElementById(`row-${idx}`);
+  if (!tr) return;
+  tr.classList.add('editing');
+  tr.innerHTML = `
+    <td><input class="edit-input" id="e-sn" value="${r.sn||''}" placeholder="SN"></td>
+    <td><input class="edit-input" id="e-product" value="${r.product||''}" placeholder="Product"></td>
+    <td><input class="edit-input" id="e-reqDate" value="${r.reqDate||''}" placeholder="Req Date" style="width:90px"></td>
+    <td><input class="edit-input" id="e-qty" value="${r.qty||''}" placeholder="QTY" style="width:40px"></td>
+    <td><input class="edit-input" id="e-description" value="${r.description||''}" placeholder="Description"></td>
+    <td><input class="edit-input" id="e-result" value="${r.result||''}" placeholder="Result" style="width:80px"></td>
+    <td><input class="edit-input" id="e-rma" value="${r.rma||''}" placeholder="RMA#" style="width:70px"></td>
+    <td><input class="edit-input" id="e-recvDate" value="${r.recvDate||''}" placeholder="Recv Date" style="width:90px"></td>
+    <td><textarea class="edit-input" id="e-verify" rows="3" placeholder="Verify/Findings" style="width:100%;resize:vertical">${r.verify||''}</textarea></td>
+    <td><input class="edit-input" id="e-restoreFee" value="${r.restoreFee||''}" placeholder="Fee" style="width:50px"></td>
+    <td><input class="edit-input" id="e-overlay" value="${r.overlay||''}" placeholder="Ovl" style="width:40px"></td>
+    <td><input class="edit-input" id="e-box" value="${r.box||''}" placeholder="Box" style="width:40px"></td>
+    <td><input class="edit-input" id="e-battery" value="${r.battery||''}" placeholder="Bat" style="width:40px"></td>
+    <td style="font-size:11px;color:var(--gray-mid)">${r.sourceFile}</td>
+    <td style="text-align:center;vertical-align:middle">
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
+        <button class="save-btn" onclick="saveEditRow(${idx})">Save</button>
+        <button class="cancel-btn" onclick="cancelEditRow(${idx})">Cancel</button>
+      </div>
+    </td>`;
+}
+
+function saveEditRow(idx) {
+  allRows[idx].sn          = document.getElementById('e-sn').value.trim();
+  allRows[idx].product     = document.getElementById('e-product').value.trim();
+  allRows[idx].reqDate     = document.getElementById('e-reqDate').value.trim();
+  allRows[idx].qty         = document.getElementById('e-qty').value.trim();
+  allRows[idx].description = document.getElementById('e-description').value.trim();
+  allRows[idx].result      = document.getElementById('e-result').value.trim();
+  allRows[idx].rma         = document.getElementById('e-rma').value.trim();
+  allRows[idx].recvDate    = document.getElementById('e-recvDate').value.trim();
+  allRows[idx].verify      = document.getElementById('e-verify').value.trim();
+  allRows[idx].restoreFee  = document.getElementById('e-restoreFee').value.trim();
+  allRows[idx].overlay     = document.getElementById('e-overlay').value.trim();
+  allRows[idx].box         = document.getElementById('e-box').value.trim();
+  allRows[idx].battery     = document.getElementById('e-battery').value.trim();
+  saveToStorage();
+  findDuplicates();
+  applyFilters();
+  updateMetrics();
+  updateCharts();
+  toast('Record updated');
+}
+
+function cancelEditRow(idx) {
+  applyFilters();
+}
   const row = allRows[idx];
   if (!row) return;
   if (!confirm(`Delete this record?\n\nSN: ${row.sn || '—'}\nProduct: ${row.product || '—'}\nDate: ${row.reqDate || '—'}\n\nThis cannot be undone.`)) return;
