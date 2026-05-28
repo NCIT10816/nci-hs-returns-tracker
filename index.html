@@ -416,11 +416,11 @@
     <!-- Pagination -->
     <div id="paginationBar" style="display:none;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--gray-border);flex-wrap:wrap;gap:8px;">
       <div style="font-size:12px;color:var(--gray-mid)" id="paginationInfo"></div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <button class="btn btn-sm btn-outline" id="pagePrev" onclick="changePage(-1)">← Prev</button>
-        <span id="pageIndicator" style="font-size:12px;color:var(--gray-dark);padding:0 6px"></span>
-        <button class="btn btn-sm btn-outline" id="pageNext" onclick="changePage(1)">Next →</button>
-        <button class="btn btn-sm btn-outline" id="viewAllBtn" onclick="toggleViewAll()" style="margin-left:8px">View All</button>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <button id="pagePrev" onclick="changePage(-1)" style="padding:5px 14px;font-size:12px;font-weight:600;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#185FA5;cursor:pointer;">← Prev</button>
+        <span id="pageIndicator" style="font-size:12px;color:#374151;padding:0 8px;white-space:nowrap"></span>
+        <button id="pageNext" onclick="changePage(1)" style="padding:5px 14px;font-size:12px;font-weight:600;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#185FA5;cursor:pointer;">Next →</button>
+        <button id="viewAllBtn" onclick="toggleViewAll()" style="margin-left:12px;padding:5px 14px;font-size:12px;font-weight:600;border:1px solid #185FA5;border-radius:6px;background:#fff;color:#185FA5;cursor:pointer;">View All</button>
       </div>
     </div>
   </div>
@@ -851,7 +851,9 @@ function renderTable() {
   document.getElementById('pageIndicator').textContent  = viewAll ? `All ${total} records` : `Page ${currentPage} of ${totalPages}`;
   document.getElementById('pagePrev').disabled  = viewAll || currentPage === 1;
   document.getElementById('pageNext').disabled  = viewAll || currentPage === totalPages;
-  document.getElementById('viewAllBtn').textContent = viewAll ? 'Page View' : 'View All';
+  document.getElementById('pagePrev').style.opacity  = (viewAll || currentPage === 1) ? '0.4' : '1';
+  document.getElementById('pageNext').style.opacity  = (viewAll || currentPage === totalPages) ? '0.4' : '1';
+  document.getElementById('viewAllBtn').textContent = viewAll ? '« Page View' : 'View All';
 }
 
 function changePage(dir) {
