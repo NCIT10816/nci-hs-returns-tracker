@@ -413,6 +413,16 @@
         <p>Upload one or more Excel return sheets above to get started.</p>
       </div>
     </div>
+    <!-- Pagination -->
+    <div id="paginationBar" style="display:none;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--gray-border);flex-wrap:wrap;gap:8px;">
+      <div style="font-size:12px;color:var(--gray-mid)" id="paginationInfo"></div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="btn btn-sm btn-outline" id="pagePrev" onclick="changePage(-1)">← Prev</button>
+        <span id="pageIndicator" style="font-size:12px;color:var(--gray-dark);padding:0 6px"></span>
+        <button class="btn btn-sm btn-outline" id="pageNext" onclick="changePage(1)">Next →</button>
+        <button class="btn btn-sm btn-outline" id="viewAllBtn" onclick="toggleViewAll()" style="margin-left:8px">View All</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -445,6 +455,9 @@ let chartPie = null;
 let chartTrend = null;
 let dupSNs = new Set();
 let descOverrides = {}; // kept for backward compat with saved data
+let currentPage = 1;
+const PAGE_SIZE = 25;
+let viewAll = false;
 
 // ── Storage ──
 function saveToStorage() {
@@ -742,6 +755,8 @@ function applyFilters() {
     });
   }
 
+  currentPage = 1;
+  viewAll = false;
   renderTable();
   document.getElementById('recordCount').textContent = filteredRows.length + ' of ' + allRows.length + ' records';
 }
@@ -776,15 +791,28 @@ function getVerifyBadge(verify) {
 function renderTable() {
   const tbody = document.getElementById('tableBody');
   const empty = document.getElementById('emptyState');
+  const paginationBar = document.getElementById('paginationBar');
+
   if (!filteredRows.length) {
     tbody.innerHTML = '';
     empty.style.display = 'block';
     empty.querySelector('h3').textContent = allRows.length ? 'No records match your filters' : 'No data loaded yet';
     empty.querySelector('p').textContent  = allRows.length ? 'Try adjusting or clearing your filters.' : 'Upload one or more Excel return sheets above to get started.';
+    paginationBar.style.display = 'none';
     return;
   }
   empty.style.display = 'none';
-  tbody.innerHTML = filteredRows.map(r => {
+
+  // Pagination
+  const total = filteredRows.length;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  if (currentPage > totalPages) currentPage = totalPages;
+
+  const rowsToShow = viewAll ? filteredRows : filteredRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const startNum = viewAll ? 1 : (currentPage - 1) * PAGE_SIZE + 1;
+  const endNum   = viewAll ? total : Math.min(currentPage * PAGE_SIZE, total);
+
+  tbody.innerHTML = rowsToShow.map(r => {
     const isDup = dupSNs.has(r.sn);
     const idx = allRows.indexOf(r);
     return `<tr class="${isDup ? 'dup-row' : ''}" id="row-${idx}">
@@ -816,6 +844,26 @@ function renderTable() {
       </td>
     </tr>`;
   }).join('');
+
+  // Update pagination controls
+  paginationBar.style.display = 'flex';
+  document.getElementById('paginationInfo').textContent = `Showing ${startNum}–${endNum} of ${total} records`;
+  document.getElementById('pageIndicator').textContent  = viewAll ? `All ${total} records` : `Page ${currentPage} of ${totalPages}`;
+  document.getElementById('pagePrev').disabled  = viewAll || currentPage === 1;
+  document.getElementById('pageNext').disabled  = viewAll || currentPage === totalPages;
+  document.getElementById('viewAllBtn').textContent = viewAll ? 'Page View' : 'View All';
+}
+
+function changePage(dir) {
+  currentPage += dir;
+  renderTable();
+  document.querySelector('.data-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function toggleViewAll() {
+  viewAll = !viewAll;
+  currentPage = 1;
+  renderTable();
 }
 
 function updateCharts() {
