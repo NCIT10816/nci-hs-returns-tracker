@@ -1081,415 +1081,50 @@ function deleteRow(idx) {
   toast('Record deleted');
 }
 
-function publishDashboard() {
+async function publishDashboard() {
   if (!allRows.length) { toast('No data to publish — upload your Excel sheets first'); return; }
-  if (!confirm('Publish Dashboard?\n\nThis will generate a dashboard.html file with all your current data baked in.\n\nUpload it to GitHub and anyone with the /dashboard link can view it.')) return;
+  if (!confirm('Publish Dashboard?\n\nThis will save your current data to the cloud.\nEngineers will see the update immediately when they log in.')) return;
 
-  const data = JSON.stringify(allRows);
-  const files = JSON.stringify(loadedFiles);
-  const overrides = JSON.stringify(descOverrides);
-  const generated = new Date().toLocaleString();
+  const SUPABASE_URL = 'https://qrijvaldhkxwopkhixks.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFyaWp2YWxkaGt4d29wa2hpeGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc1OTUxNzUsImV4cCI6MjEwMzE3MTE3NX0.pCvDJMjypfaAnSXaRQ6LOrYqe7OqRY06Iw6owqOkp68';
 
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Returns Dashboard — NCI Technology</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"><\/script>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-  :root{--blue-dark:#0d2e4f;--blue-mid:#185FA5;--blue-light:#e8f1fb;--gray-dark:#1c1c1e;--gray-mid:#5f5e5a;--gray-light:#f3f4f5;--gray-border:#d8dade;--white:#ffffff;--success:#2d7a3a;--success-bg:#eaf4ec;--warn:#8a5200;--warn-bg:#fef3dc;--danger:#a32d2d;--danger-bg:#fceaea;--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--shadow-sm:0 1px 3px rgba(0,0,0,.08);--shadow-md:0 4px 16px rgba(0,0,0,.10)}
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'DM Sans',sans-serif;background:#f0f2f5;color:var(--gray-dark);min-height:100vh}
-  header{background:var(--blue-dark);color:#fff;padding:0 2rem;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.25)}
-  .logo{display:flex;align-items:center;gap:12px}
-  .logo-mark{width:32px;height:32px;background:var(--blue-mid);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px}
-  .logo-text{font-size:15px;font-weight:500}
-  .logo-sub{font-size:11px;opacity:.55;margin-top:1px}
-  .pub-badge{font-size:11px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);padding:4px 10px;border-radius:999px;color:#fff}
-  .btn{font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;padding:7px 16px;border-radius:var(--radius-sm);cursor:pointer;border:1px solid var(--gray-border);background:var(--white);color:var(--gray-dark);transition:background .15s;white-space:nowrap}
-  .btn:hover{background:var(--gray-light)}
-  .btn-primary{background:var(--blue-mid);color:#fff;border-color:var(--blue-mid)}
-  .btn-primary:hover{background:#0f4a82}
-  .btn-outline{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}
-  .btn-outline:hover{background:rgba(255,255,255,.1)}
-  .btn-sm{padding:5px 11px;font-size:12px}
-  .page{max-width:1400px;margin:0 auto;padding:1.5rem 2rem 3rem}
-  .pub-banner{background:var(--blue-light);border:1px solid #b5d4f4;border-radius:var(--radius-lg);padding:14px 20px;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;font-size:13px}
-  .pub-banner strong{color:var(--blue-mid)}
-  .pub-banner span{color:var(--gray-mid);font-size:12px}
-  .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:1.25rem}
-  .metric{background:var(--white);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow-sm);border:1px solid var(--gray-border);position:relative;overflow:hidden}
-  .metric::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--blue-mid);border-radius:var(--radius-lg) var(--radius-lg) 0 0}
-  .metric.m-warn::before{background:#e09a00}
-  .metric.m-dup::before{background:#7F77DD}
-  .metric-label{font-size:11px;font-weight:500;color:var(--gray-mid);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
-  .metric-value{font-size:28px;font-weight:600;line-height:1}
-  .metric-sub{font-size:11px;color:var(--gray-mid);margin-top:5px}
-  .metric.clickable{cursor:pointer}
-  .metric.clickable:hover{background:var(--blue-light)}
-  .charts-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:1.25rem}
-  .chart-card{background:var(--white);border:1px solid var(--gray-border);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow-sm)}
-  .chart-card-title{font-size:12px;font-weight:600;color:var(--gray-mid);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px}
-  .data-panel{background:var(--white);border:1px solid var(--gray-border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:hidden}
-  .panel-header{padding:14px 18px;border-bottom:1px solid var(--gray-border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;background:var(--gray-light)}
-  .panel-title{font-size:13px;font-weight:600}
-  .record-count{font-size:12px;color:var(--gray-mid)}
-  .filters{padding:12px 18px;border-bottom:1px solid var(--gray-border);display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:#fafafa}
-  .filter-group{display:flex;align-items:center;gap:6px}
-  .filter-group label{font-size:12px;color:var(--gray-mid);white-space:nowrap}
-  .filters input[type=text],.filters input[type=date],.filters select{font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 10px;height:32px;border:1px solid var(--gray-border);border-radius:var(--radius-sm);background:var(--white);color:var(--gray-dark)}
-  .filters input[type=text]{width:180px}
-  .filters input[type=date]{width:130px}
-  .filter-check{display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer}
-  .table-wrap{overflow-x:auto}
-  table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:1000px}
-  th{padding:9px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--gray-mid);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--gray-border);white-space:nowrap;background:var(--gray-light);cursor:pointer;user-select:none}
-  th:hover{background:#e8eaed}
-  th .sa{opacity:.3;margin-left:3px;font-size:10px}
-  th.sa-asc .sa::after{content:'▲';opacity:1}
-  th.sa-desc .sa::after{content:'▼';opacity:1}
-  td{padding:9px 12px;border-bottom:1px solid #f0f2f5;vertical-align:top}
-  tr:last-child td{border-bottom:none}
-  tr:hover td{background:var(--blue-light)}
-  tr.dup-row td{background:#f5f0ff}
-  tr.dup-row:hover td{background:#ede6ff}
-  td.mono{font-family:'DM Mono',monospace;font-size:11.5px}
-  .badge{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px}
-  .badge-ok{background:var(--success-bg);color:var(--success)}
-  .badge-warn{background:var(--warn-bg);color:var(--warn)}
-  .badge-issue{background:var(--danger-bg);color:var(--danger)}
-  .badge-none{background:#f0f2f5;color:var(--gray-mid)}
-  .badge-dup{background:#EEEDFE;color:#534AB7}
-  .verify-cell{max-width:240px}
-  .verify-text{font-size:11px;color:var(--gray-mid);display:block;margin-top:3px;line-height:1.5;word-break:break-word}
-  .empty-state{text-align:center;padding:4rem 2rem;color:var(--gray-mid)}
-  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;align-items:center;justify-content:center}
-  .modal-overlay.open{display:flex}
-  .modal{background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);padding:28px 32px;max-width:580px;width:90%;max-height:80vh;overflow-y:auto}
-  .modal-title{font-size:16px;font-weight:600;margin-bottom:6px}
-  .modal-sub{font-size:13px;color:var(--gray-mid);margin-bottom:20px}
-  .modal-close{float:right;cursor:pointer;font-size:20px;color:var(--gray-mid);border:none;background:none;margin-top:-4px}
-  .dup-group{margin-bottom:16px}
-  .dup-group-title{font-size:12px;font-weight:600;color:#534AB7;background:#EEEDFE;padding:5px 10px;border-radius:var(--radius-sm);margin-bottom:6px;font-family:'DM Mono',monospace}
-  .dup-item{font-size:12px;padding:6px 10px;border-bottom:1px solid var(--gray-border);display:flex;gap:12px;flex-wrap:wrap}
-  .dup-item:last-child{border-bottom:none}
-  .dup-item span{color:var(--gray-mid)}
-  .dup-item strong{color:var(--gray-dark)}
-  #toast{position:fixed;bottom:24px;right:24px;background:var(--blue-dark);color:#fff;font-size:13px;font-weight:500;padding:12px 20px;border-radius:var(--radius-md);box-shadow:var(--shadow-md);opacity:0;pointer-events:none;transition:opacity .3s;z-index:999}
-  #toast.show{opacity:1}
-  @media(max-width:900px){.metrics{grid-template-columns:repeat(2,1fr)}.charts-row{grid-template-columns:1fr}.page{padding:1rem}}
-<\/style>
-<\/head>
-<body>
-<header>
-  <div class="logo">
-    <div class="logo-mark">NCI<\/div>
-    <div>
-      <div class="logo-text">NCI Technology<\/div>
-      <div class="logo-sub">Returns Dashboard<\/div>
-    <\/div>
-  <\/div>
-  <div style="display:flex;align-items:center;gap:12px">
-    <span class="pub-badge">&#128247; Published ${generated}<\/span>
-    <button class="btn btn-outline btn-sm" onclick="exportReport()">&#128196; Create Report<\/button>
-  <\/div>
-<\/header>
+  const btn = document.querySelector('button[onclick="publishDashboard()"]');
+  const original = btn.innerHTML;
+  btn.innerHTML = '⏳ Publishing…';
+  btn.disabled = true;
 
-<div class="page">
-  <div class="pub-banner">
-    <div><strong>View-only dashboard<\/strong> — data published by NCI Technology<\/div>
-    <span>Last updated: ${generated}<\/span>
-  <\/div>
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/dashboard_snapshot`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({
+        rows: allRows,
+        loaded_files: loadedFiles,
+        total_records: allRows.length,
+        published_by: 'Gail'
+      })
+    });
 
-  <div class="metrics">
-    <div class="metric"><div class="metric-label">Total Returns<\/div><div class="metric-value" id="m-total">0<\/div><div class="metric-sub">across all files<\/div><\/div>
-    <div class="metric"><div class="metric-label">Files Loaded<\/div><div class="metric-value" id="m-files">0<\/div><div class="metric-sub">sheets compiled<\/div><\/div>
-    <div class="metric m-warn"><div class="metric-label">Restore Fees<\/div><div class="metric-value" id="m-fee" style="color:var(--warn)">0<\/div><div class="metric-sub">charged returns<\/div><\/div>
-    <div class="metric m-dup clickable" onclick="showDuplicates()" title="Click to view duplicates"><div class="metric-label">Duplicate SNs<\/div><div class="metric-value" id="m-dup" style="color:#534AB7">0<\/div><div class="metric-sub">click to review<\/div><\/div>
-  <\/div>
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err);
+    }
 
-  <div class="charts-row">
-    <div class="chart-card"><div class="chart-card-title">Returns by Description Type (Top 8)<\/div><div style="position:relative;height:220px"><canvas id="chartDesc"><\/canvas><\/div><\/div>
-    <div class="chart-card"><div class="chart-card-title">Most reported products<\/div><div style="position:relative;height:220px"><canvas id="chartProducts"><\/canvas><\/div><\/div>
-  <\/div>
-
-  <div class="charts-row" style="grid-template-columns:1fr 1fr;margin-bottom:1.25rem">
-    <div class="chart-card"><div class="chart-card-title">Product Returns — % of Total<\/div><div style="position:relative;height:240px"><canvas id="chartPie"><\/canvas><\/div><\/div>
-    <div class="chart-card"><div class="chart-card-title">Returns Over Time <span style="font-weight:400;opacity:.6">(by month)<\/span><\/div><div style="position:relative;height:240px"><canvas id="chartTrend"><\/canvas><\/div><\/div>
-  <\/div>
-
-  <div class="data-panel">
-    <div class="panel-header">
-      <div><div class="panel-title">All Returns<\/div><div class="record-count" id="recordCount"><\/div><\/div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-sm" onclick="clearFilters()">Clear filters<\/button>
-        <button class="btn btn-sm btn-primary" onclick="exportReport()">Create Report (Excel)<\/button>
-      <\/div>
-    <\/div>
-    <div class="filters">
-      <div class="filter-group"><label>&#128269;<\/label><input type="text" id="search" placeholder="Search SN, description, findings…" oninput="applyFilters()"><\/div>
-      <div class="filter-group"><label>Product<\/label><select id="fProduct" onchange="applyFilters()"><option value="">All products<\/option><\/select><\/div>
-      <div class="filter-group"><label>Date from<\/label><input type="date" id="fDateFrom" onchange="applyFilters()"><\/div>
-      <div class="filter-group"><label>to<\/label><input type="date" id="fDateTo" onchange="applyFilters()"><\/div>
-      <div class="filter-group"><label>File<\/label><select id="fFile" onchange="applyFilters()"><option value="">All files<\/option><\/select><\/div>
-      <label class="filter-check"><input type="checkbox" id="fFee" onchange="applyFilters()"> Restore fee only<\/label>
-      <label class="filter-check"><input type="checkbox" id="fDups" onchange="applyFilters()"> Duplicates only<\/label>
-    <\/div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr>
-          <th onclick="sortBy('sn')">SN <span class="sa"><\/span><\/th>
-          <th onclick="sortBy('product')">Product <span class="sa"><\/span><\/th>
-          <th onclick="sortBy('reqDate')">Req. Date <span class="sa"><\/span><\/th>
-          <th onclick="sortBy('qty')">QTY <span class="sa"><\/span><\/th>
-          <th onclick="sortBy('description')">Description <span class="sa"><\/span><\/th>
-          <th onclick="sortBy('result')">Result <span class="sa"><\/span><\/th>
-          <th onclick="sortBy('rma')">RMA # <span class="sa"><\/span><\/th>
-          <th onclick="sortBy('recvDate')">Recv. Date <span class="sa"><\/span><\/th>
-          <th>Verify / Findings<\/th>
-          <th onclick="sortBy('restoreFee')">Restore Fee <span class="sa"><\/span><\/th>
-          <th>Overlay<\/th><th>Box<\/th><th>Battery<\/th>
-          <th onclick="sortBy('sourceFile')">Source File <span class="sa"><\/span><\/th>
-        <\/tr><\/thead>
-        <tbody id="tableBody"><\/tbody>
-      <\/table>
-      <div class="empty-state" id="emptyState"><p>No records match your filters.<\/p><\/div>
-    <\/div>
-    <div id="paginationBar" style="display:none;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--gray-border);flex-wrap:wrap;gap:8px;">
-      <div style="font-size:12px;color:#6b7280" id="paginationInfo"><\/div>
-      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-        <button id="pagePrev" onclick="changePage(-1)" style="padding:5px 14px;font-size:12px;font-weight:600;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#185FA5;cursor:pointer;">← Prev<\/button>
-        <span id="pageIndicator" style="font-size:12px;color:#374151;padding:0 8px;white-space:nowrap"><\/span>
-        <button id="pageNext" onclick="changePage(1)" style="padding:5px 14px;font-size:12px;font-weight:600;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#185FA5;cursor:pointer;">Next →<\/button>
-        <button id="viewAllBtn" onclick="toggleViewAll()" style="margin-left:12px;padding:5px 14px;font-size:12px;font-weight:600;border:1px solid #185FA5;border-radius:6px;background:#fff;color:#185FA5;cursor:pointer;">View All<\/button>
-      <\/div>
-    <\/div>
-  <\/div>
-<\/div>
-
-<div class="modal-overlay" id="dupModal">
-  <div class="modal">
-    <button class="modal-close" onclick="document.getElementById('dupModal').classList.remove('open')">×<\/button>
-    <div class="modal-title">⚠ Duplicate Serial Numbers<\/div>
-    <div class="modal-sub" id="dupModalSub"><\/div>
-    <div id="dupModalBody"><\/div>
-    <div style="margin-top:20px;text-align:right"><button class="btn btn-primary btn-sm" onclick="document.getElementById('dupModal').classList.remove('open')">Close<\/button><\/div>
-  <\/div>
-<\/div>
-<div id="toast"><\/div>
-
-<script>
-const allRows = ${data};
-const loadedFiles = ${files};
-let filteredRows = [];
-let sortCol = '', sortDir = 1;
-let chartDesc = null, chartFiles = null, chartProducts = null, chartPie = null, chartTrend = null;
-const dupSNs = new Set();
-let currentPage = 1;
-const PAGE_SIZE = 25;
-let viewAll = false;
-
-function init() {
-  const snCount = {};
-  allRows.forEach(r => { if(r.sn) snCount[r.sn]=(snCount[r.sn]||0)+1; });
-  Object.keys(snCount).filter(s=>snCount[s]>1).forEach(s=>dupSNs.add(s));
-  document.getElementById('m-total').textContent = allRows.length;
-  document.getElementById('m-files').textContent = loadedFiles.length;
-  document.getElementById('m-fee').textContent   = allRows.filter(r=>r.restoreFee&&r.restoreFee.toString().trim()).length;
-  document.getElementById('m-dup').textContent   = dupSNs.size;
-  updateProductFilter(); updateFileFilter(); applyFilters(); updateCharts();
+    toast('✅ Dashboard published! Engineers can now see the latest data.');
+  } catch (err) {
+    console.error(err);
+    toast('❌ Publish failed — check your connection and try again');
+  } finally {
+    btn.innerHTML = original;
+    btn.disabled = false;
+  }
 }
 
-function updateProductFilter() {
-  const products = [...new Set(allRows.map(r=>r.product).filter(Boolean))].sort();
-  document.getElementById('fProduct').innerHTML = '<option value="">All products<\/option>' + products.map(p=>\`<option value="\${p}">\${p}<\/option>\`).join('');
-}
-function updateFileFilter() {
-  document.getElementById('fFile').innerHTML = '<option value="">All files<\/option>' + loadedFiles.map(f=>\`<option value="\${f}">\${f}<\/option>\`).join('');
-}
-
-function parseDate(str) {
-  if(!str) return null;
-  const d = new Date(str.toString().trim());
-  if(!isNaN(d)) return d;
-  const p = str.toString().split('/');
-  if(p.length===3) return new Date(+p[2],+p[0]-1,+p[1]);
-  return null;
-}
-
-function applyFilters() {
-  const search = document.getElementById('search').value.toLowerCase();
-  const prod   = document.getElementById('fProduct').value;
-  const dateFrom = document.getElementById('fDateFrom').value;
-  const dateTo   = document.getElementById('fDateTo').value;
-  const fileF  = document.getElementById('fFile').value;
-  const fee    = document.getElementById('fFee').checked;
-  const dups   = document.getElementById('fDups').checked;
-  const fromTs = dateFrom ? new Date(dateFrom).getTime() : null;
-  const toTs   = dateTo   ? new Date(dateTo+'T23:59:59').getTime() : null;
-  filteredRows = allRows.filter(r => {
-    if(search && !\`\${r.sn} \${r.description} \${r.verify} \${r.rma} \${r.product}\`.toLowerCase().includes(search)) return false;
-    if(prod && r.product.toString()!==prod) return false;
-    if(fromTs||toTs){const rTs=parseDate(r.reqDate)?.getTime();if(fromTs&&(!rTs||rTs<fromTs))return false;if(toTs&&(!rTs||rTs>toTs))return false;}
-    if(fileF && r.sourceFile!==fileF) return false;
-    if(fee && !(r.restoreFee&&r.restoreFee.toString().trim())) return false;
-    if(dups && !dupSNs.has(r.sn)) return false;
-    return true;
-  });
-  if(sortCol) filteredRows.sort((a,b)=>{let av=a[sortCol]||'',bv=b[sortCol]||'';return av<bv?-sortDir:av>bv?sortDir:0;});
-  currentPage = 1; viewAll = false;
-  renderTable();
-  document.getElementById('recordCount').textContent = filteredRows.length+' of '+allRows.length+' records';
-}
-
-function clearFilters() {
-  document.getElementById('search').value='';
-  document.getElementById('fProduct').value='';
-  document.getElementById('fDateFrom').value='';
-  document.getElementById('fDateTo').value='';
-  document.getElementById('fFile').value='';
-  document.getElementById('fFee').checked=false;
-  document.getElementById('fDups').checked=false;
-  applyFilters();
-}
-
-function sortBy(col) {
-  if(sortCol===col) sortDir*=-1; else{sortCol=col;sortDir=1;}
-  document.querySelectorAll('th').forEach(th=>th.classList.remove('sa-asc','sa-desc'));
-  const cols=['sn','product','reqDate','qty','description','result','rma','','','restoreFee','','','','sourceFile'];
-  const idx=cols.indexOf(col);
-  if(idx>=0) document.querySelectorAll('th')[idx].classList.add(sortDir===1?'sa-asc':'sa-desc');
-  applyFilters();
-}
-
-function getVerifyBadge(v) {
-  if(!v||!v.trim()) return '<span class="badge badge-none">—<\/span>';
-  const vl=v.toLowerCase();
-  if(vl.includes('not ')||vl.includes('wrong')||vl.includes('missing')||vl.includes('fail')||vl.includes('no battery')) return '<span class="badge badge-issue">Issue<\/span>';
-  if(vl.includes('good')||vl.includes(' ok')||vl.includes('pass')) return '<span class="badge badge-ok">OK<\/span>';
-  return '<span class="badge badge-warn">Review<\/span>';
-}
-
-function renderTable() {
-  const tbody=document.getElementById('tableBody');
-  const empty=document.getElementById('emptyState');
-  const paginationBar=document.getElementById('paginationBar');
-  if(!filteredRows.length){tbody.innerHTML='';empty.style.display='block';paginationBar.style.display='none';return;}
-  empty.style.display='none';
-  const total=filteredRows.length;
-  const totalPages=Math.ceil(total/PAGE_SIZE);
-  if(currentPage>totalPages) currentPage=totalPages;
-  const rowsToShow=viewAll?filteredRows:filteredRows.slice((currentPage-1)*PAGE_SIZE,currentPage*PAGE_SIZE);
-  const startNum=viewAll?1:(currentPage-1)*PAGE_SIZE+1;
-  const endNum=viewAll?total:Math.min(currentPage*PAGE_SIZE,total);
-  tbody.innerHTML=rowsToShow.map(r=>{
-    const isDup=dupSNs.has(r.sn);
-    return \`<tr class="\${isDup?'dup-row':''}">
-      <td class="mono"><strong>\${r.sn}<\/strong>\${isDup?' <span class="badge badge-dup">DUP<\/span>':''}<\/td>
-      <td>\${r.product}<\/td>
-      <td style="white-space:nowrap">\${r.reqDate}<\/td>
-      <td style="text-align:center">\${r.qty}<\/td>
-      <td style="max-width:180px;word-break:break-word">\${r.description}<\/td>
-      <td>\${r.result}<\/td>
-      <td class="mono">\${r.rma}<\/td>
-      <td style="white-space:nowrap">\${r.recvDate}<\/td>
-      <td class="verify-cell">\${getVerifyBadge(r.verify)}\${r.verify?\`<span class="verify-text">\${r.verify}<\/span>\`:''}<\/td>
-      <td style="text-align:center">\${r.restoreFee&&r.restoreFee.toString().trim()?'<span class="badge badge-warn">Yes<\/span>':'<span style="color:#ccc">—<\/span>'}<\/td>
-      <td style="text-align:center">\${r.overlay||'<span style="color:#ccc">—<\/span>'}<\/td>
-      <td style="text-align:center">\${r.box||'<span style="color:#ccc">—<\/span>'}<\/td>
-      <td style="text-align:center">\${r.battery||'<span style="color:#ccc">—<\/span>'}<\/td>
-      <td style="font-size:11px;color:var(--gray-mid)">\${r.sourceFile}<\/td>
-    <\/tr>\`;
-  }).join('');
-  paginationBar.style.display='flex';
-  document.getElementById('paginationInfo').textContent=\`Showing \${startNum}–\${endNum} of \${total} records\`;
-  document.getElementById('pageIndicator').textContent=viewAll?\`All \${total} records\`:\`Page \${currentPage} of \${totalPages}\`;
-  document.getElementById('pagePrev').disabled=viewAll||currentPage===1;
-  document.getElementById('pageNext').disabled=viewAll||currentPage===totalPages;
-  document.getElementById('pagePrev').style.opacity=(viewAll||currentPage===1)?'0.4':'1';
-  document.getElementById('pageNext').style.opacity=(viewAll||currentPage===totalPages)?'0.4':'1';
-  document.getElementById('viewAllBtn').textContent=viewAll?'« Page View':'View All';
-}
-
-function changePage(dir){currentPage+=dir;renderTable();document.querySelector('.data-panel').scrollIntoView({behavior:'smooth',block:'start'});}
-function toggleViewAll(){viewAll=!viewAll;currentPage=1;renderTable();}
-
-function updateCharts() {
-  const colors=['#185FA5','#1D9E75','#BA7517','#D4537E','#7F77DD','#D85A30','#639922','#E24B4A','#5DCAA5','#F09595'];
-  const overrides=${overrides};
-  const descMap={};
-  allRows.forEach(r=>{
-    const label=r.description||'Unknown';
-    descMap[label]=(descMap[label]||0)+1;
-  });
-  const descSorted=Object.entries(descMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  const prodMap={};allRows.forEach(r=>{const p=r.product?r.product.toString():'Unknown';prodMap[p]=(prodMap[p]||0)+1;});
-  const prodSorted=Object.entries(prodMap).sort((a,b)=>b[1]-a[1]);
-  const fileMap={};allRows.forEach(r=>{fileMap[r.sourceFile]=(fileMap[r.sourceFile]||0)+1;});
-  if(chartDesc) chartDesc.destroy();
-  chartDesc=new Chart(document.getElementById('chartDesc'),{type:'bar',data:{labels:descSorted.map(([k])=>k.length>28?k.slice(0,28)+'…':k),datasets:[{data:descSorted.map(([,v])=>v),backgroundColor:colors.slice(0,descSorted.length),borderRadius:5,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,font:{size:11}}},x:{ticks:{font:{size:10}}}}}});
-  if(chartProducts) chartProducts.destroy();
-  chartProducts=new Chart(document.getElementById('chartProducts'),{type:'bar',data:{labels:prodSorted.map(([k])=>k.length>18?k.slice(0,18)+'…':k),datasets:[{data:prodSorted.map(([,v])=>v),backgroundColor:prodSorted.map((_,i)=>colors[i%colors.length]),borderRadius:5,borderWidth:0}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{stepSize:1,font:{size:11}}},y:{ticks:{font:{size:11}}}}}});
-  if(chartFiles) chartFiles.destroy(); // removed NSP chart, kept variable for compatibility
-  if(chartPie) chartPie.destroy();
-  chartPie=new Chart(document.getElementById('chartPie'),{type:'pie',data:{labels:prodSorted.map(([k])=>k),datasets:[{data:prodSorted.map(([,v])=>v),backgroundColor:prodSorted.map((_,i)=>colors[i%colors.length]),borderWidth:1,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11},boxWidth:12,padding:10}},tooltip:{callbacks:{label:ctx=>{const total=ctx.dataset.data.reduce((a,b)=>a+b,0);const pct=total?((ctx.parsed/total)*100).toFixed(1):0;return \` \${ctx.label}: \${ctx.parsed} (\${pct}%)\`;}}}}}});
-  const monthMap={};
-  allRows.forEach(r=>{if(!r.reqDate)return;const d=new Date(r.reqDate);if(isNaN(d))return;const key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');monthMap[key]=(monthMap[key]||0)+1;});
-  const monthEntries=Object.entries(monthMap).sort((a,b)=>a[0].localeCompare(b[0]));
-  if(chartTrend) chartTrend.destroy();
-  chartTrend=new Chart(document.getElementById('chartTrend'),{type:'line',data:{labels:monthEntries.map(([k])=>{const[y,m]=k.split('-');return new Date(+y,+m-1).toLocaleString('default',{month:'short',year:'2-digit'});}),datasets:[{data:monthEntries.map(([,v])=>v),borderColor:'#185FA5',backgroundColor:'rgba(24,95,165,0.08)',borderWidth:2,pointRadius:4,pointBackgroundColor:'#185FA5',fill:true,tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1,font:{size:11}}},x:{ticks:{font:{size:10}}}}}});
-}
-
-function showDuplicates() {
-  if(dupSNs.size===0){toast('No duplicate serial numbers found');return;}
-  document.getElementById('dupModalSub').textContent=dupSNs.size+' serial number'+(dupSNs.size>1?' appears':' appears')+' more than once.';
-  let html='';
-  dupSNs.forEach(sn=>{
-    const matches=allRows.filter(r=>r.sn===sn);
-    html+=\`<div class="dup-group"><div class="dup-group-title">\${sn} — \${matches.length} occurrences<\/div>\`;
-    matches.forEach(r=>{html+=\`<div class="dup-item"><div><span>Date: <\/span><strong>\${r.reqDate||'—'}<\/strong><\/div><div><span>Product: <\/span><strong>\${r.product||'—'}<\/strong><\/div><div><span>File: <\/span><strong>\${r.sourceFile}<\/strong><\/div><\/div>\`;});
-    html+='<\/div>';
-  });
-  document.getElementById('dupModalBody').innerHTML=html;
-  document.getElementById('dupModal').classList.add('open');
-}
-
-function exportReport() {
-  if(!filteredRows.length){toast('No data to export');return;}
-  const wb=XLSX.utils.book_new();
-  const fees=filteredRows.filter(r=>r.restoreFee&&r.restoreFee.toString().trim());
-  const dups=filteredRows.filter(r=>dupSNs.has(r.sn));
-  const descMap={};filteredRows.forEach(r=>{const d=r.description||'Unknown';descMap[d]=(descMap[d]||0)+1;});
-  const summary=[['NCI Technology — Returns Report'],[''],['Generated',new Date().toLocaleString()],['Files included',loadedFiles.join(' | ')],[''],['METRIC','VALUE'],['Total records',filteredRows.length],['Restore fees charged',fees.length],['Duplicate SNs',dupSNs.size],['Unique products',new Set(filteredRows.map(r=>r.product)).size],[''],['TOP ISSUE TYPES','COUNT']];
-  Object.entries(descMap).sort((a,b)=>b[1]-a[1]).slice(0,10).forEach(([k,v])=>summary.push([k,v]));
-  const ws2=XLSX.utils.aoa_to_sheet(summary);ws2['!cols']=[{wch:35},{wch:20}];
-  XLSX.utils.book_append_sheet(wb,ws2,'Summary');
-  const headers=['SN','Product','Req Date','QTY','Description','Result','RMA#','Recv Date','Verify / Findings','Restore Fee','Overlay','Box','Battery','Source File'];
-  const toRow=r=>[r.sn,r.product,r.reqDate,r.qty,r.description,r.result,r.rma,r.recvDate,r.verify,r.restoreFee,r.overlay,r.box,r.battery,r.sourceFile];
-  const cw=[14,12,12,6,30,12,10,12,45,12,10,8,10,20].map(w=>({wch:w}));
-  const ws=XLSX.utils.aoa_to_sheet([headers,...filteredRows.map(toRow)]);ws['!cols']=cw;
-  XLSX.utils.book_append_sheet(wb,ws,'All Returns');
-  if(dups.length){const wsD=XLSX.utils.aoa_to_sheet([headers,...dups.map(toRow)]);wsD['!cols']=cw;XLSX.utils.book_append_sheet(wb,wsD,'Duplicate SNs');}
-  XLSX.writeFile(wb,'returns_report.xlsx');
-  toast('Report exported');
-}
-
-function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3500);}
-window.addEventListener('load',init);
-<\/script>
-<\/body>
-<\/html>`;
-
-  const blob = new Blob([html], { type: 'text/html' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'dashboard.html';
-  a.click();
-  toast('Dashboard published! Upload dashboard.html to GitHub.');
-}
 
 function toast(msg) {
   const el = document.getElementById('toast');
